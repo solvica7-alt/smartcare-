@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
-// @ts-expect-error - IDE might report missing members in React Router v7, but they exist at runtime and in tsc
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { useReports } from '../context/ReportContext';
 import { Report } from '../types';

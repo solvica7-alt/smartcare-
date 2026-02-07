@@ -39,5 +39,11 @@
     "**/*.tsx",
     "capacitor.config.ts",
     "vite.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "مشروع",
+    "release"
   ]
 }

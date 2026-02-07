@@ -1,6 +1,7 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { Patient, AnalysisResult, Report } from '../types';
+import { SyncService } from '../services/SyncService';
 
 interface ReportContextType {
     reports: Report[];
@@ -16,7 +17,7 @@ interface ReportContextType {
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
 
-import { SyncService } from '../services/SyncService';
+
 
 export const ReportProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [reports, setReports] = useState<Report[]>(() => {
