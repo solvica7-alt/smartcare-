@@ -154,8 +154,9 @@ const PatientFormPage: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!patient.name || patient.age <= 0 || patient.symptoms.length === 0 || imageFiles.length === 0) {
-            setError("يرجى ملء جميع الحقول المطلوبة وتحميل صورة واحدة على الأقل.");
+        // Images are now optional. Basic fields and symptoms are required.
+        if (!patient.name || patient.age <= 0 || patient.symptoms.length === 0) {
+            setError("يرجى ملء جميع الحقول المطلوبة (الاسم، العمر، والأعراض).");
             return;
         }
         setError(null);
@@ -358,7 +359,7 @@ const PatientFormPage: React.FC = () => {
                     {isLoading ? (
                         <div className="flex justify-center"><LoadingSpinner message="جاري معالجة البيانات..." /></div>
                     ) : (
-                        <button type="submit" className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isOnline ? 'bg-blue-600 hover:bg-blue-700' : 'bg-yellow-600 hover:bg-yellow-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400`} disabled={!patient.name || patient.age <= 0 || patient.symptoms.length === 0 || imageFiles.length === 0}>
+                        <button type="submit" className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isOnline ? 'bg-blue-600 hover:bg-blue-700' : 'bg-yellow-600 hover:bg-yellow-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400`} disabled={!patient.name || patient.age <= 0 || patient.symptoms.length === 0}>
                             {isOnline ? 'تحليل و إنشاء تقرير' : 'حفظ محلياً (Offline Save)'}
                         </button>
                     )}

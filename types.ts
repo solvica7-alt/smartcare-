@@ -33,9 +33,12 @@ export interface Report {
   analysisResult: AnalysisResult;
   imagePreviews: string[];
   createdAt: string;
+  updatedAt: string; // To track changes for sync merging
   status: 'processed' | 'pending_sync';
-  doctorComment?: string; // New field for collaboration
-  paramedicSignature?: string; // Verification field
+  syncStatus: 'synced' | 'pending' | 'local_only'; // Detailed sync state
+  clinicId?: string; // Grouping ID for cloud sync
+  doctorComment?: string;
+  paramedicSignature?: string;
 }
 
 export interface FaqItem {

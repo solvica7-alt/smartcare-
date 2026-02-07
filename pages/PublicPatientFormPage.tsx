@@ -45,23 +45,30 @@ const PublicPatientFormPage: React.FC = () => {
             setImagePreview(URL.createObjectURL(file));
         }
     };
-    
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (patient.age <= 0 || patient.symptoms.length === 0 || !imageFile) {
-            setError("يرجى ملء جميع الحقول المطلوبة (العمر، الأعراض) وتحميل صورة.");
+        // Image is now optional for public users. Age and symptoms are required.
+        if (patient.age <= 0 || patient.symptoms.length === 0) {
+            setError("يرجى ملء جميع الحقول المطلوبة (العمر، الأعراض). يمكنك إضافة صورة إذا توفرت.");
             return;
         }
         setError(null);
         setIsLoading(true);
 
         try {
-            const base64Image = await fileToBase64(imageFile);
+            const base64Images: { data: string, mimeType: string }[] = [];
+            if (imageFile) {
+                const base64Data = await fileToBase64(imageFile);
+                base64Images.push({ data: base64Data, mimeType: imageFile.type });
+            }
+
             // Patient name is optional for public form
             const finalPatientData = { ...patient, name: patient.name || 'مريض (عام)' };
-            // FIX: The `analyzeMedicalImage` function expects an array of image objects and the patient data.
-            const result: AnalysisResult = await analyzeMedicalImage([{ data: base64Image, mimeType: imageFile.type }], finalPatientData);
-            
+
+            // Analyze with Gemini (handles empty image array automatically)
+            const result: AnalysisResult = await analyzeMedicalImage(base64Images, finalPatientData);
+
             navigate('/public-result', { state: { patient: finalPatientData, analysisResult: result, imagePreview } });
         } catch (err) {
             setError("حدث خطأ أثناء تحليل الصورة. يرجى المحاولة مرة أخرى.");
@@ -84,14 +91,14 @@ const PublicPatientFormPage: React.FC = () => {
                 <div className="my-6">
                     <SafetyNotice />
                 </div>
-                
+
                 {error && (
                     <div className="bg-red-100 border-s-4 border-red-500 text-red-700 p-4 mb-6 rounded-md flex items-center" role="alert">
                         <ExclamationCircleIcon className="h-5 w-5 me-2" />
                         <p>{error}</p>
                     </div>
                 )}
-                
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -132,7 +139,7 @@ const PublicPatientFormPage: React.FC = () => {
                                         <div className="flex text-sm text-gray-600 justify-center">
                                             <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
                                                 <span>اختر ملفاً</span>
-                                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/*" required/>
+                                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/*" />
                                             </label>
                                             <p className="ps-1">أو اسحبه وأفلته هنا</p>
                                         </div>
@@ -143,7 +150,7 @@ const PublicPatientFormPage: React.FC = () => {
                         </div>
                         {imageFile && <p className="text-sm text-gray-500 mt-2 text-center">تم اختيار الملف: {imageFile.name}</p>}
                     </div>
-                    
+
                     <div className="pt-4">
                         {isLoading ? (
                             <div className="flex justify-center">
@@ -153,13 +160,13 @@ const PublicPatientFormPage: React.FC = () => {
                             <button
                                 type="submit"
                                 className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
-                                disabled={patient.age <= 0 || patient.symptoms.length === 0 || !imageFile}
+                                disabled={patient.age <= 0 || patient.symptoms.length === 0}
                             >
                                 تحليل الحالة
                             </button>
                         )}
                     </div>
-                     <div className="text-center mt-4">
+                    <div className="text-center mt-4">
                         <a href="#/" className="text-sm text-blue-600 hover:underline">العودة لصفحة الدخول</a>
                     </div>
                 </form>

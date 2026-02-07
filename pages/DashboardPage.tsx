@@ -1,12 +1,13 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useReports } from '../context/ReportContext';
-import { DocumentPlusIcon, ChatBubbleLeftRightIcon, ArrowUpRightIcon, ExclamationTriangleIcon, ClipboardDocumentListIcon, MapPinIcon } from '@heroicons/react/24/solid';
+import { DocumentPlusIcon, ChatBubbleLeftRightIcon, ArrowUpRightIcon, ExclamationTriangleIcon, ClipboardDocumentListIcon, MapPinIcon, CloudIcon, SignalIcon } from '@heroicons/react/24/solid';
 import { FAQ_DATA } from '../constants';
 import { FaqItem } from '../types';
 
 const DashboardPage: React.FC = () => {
-    const { reports } = useReports();
+    const { reports, clinicId, setClinicId, triggerSync, isSyncing } = useReports();
+    const isOnline = navigator.onLine;
 
     // START Protocol colors
     const redCount = reports.filter(r => r.analysisResult.triage_color === 'red').length;
@@ -25,9 +26,56 @@ const DashboardPage: React.FC = () => {
 
     return (
         <div className="space-y-8" dir="rtl">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">لوحة التحكم والمراقبة</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">نظام إدارة الكوارث والفرز الطبي (START Protocol).</p>
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">لوحة التحكم والمراقبة</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">نظام إدارة الكوارث والفرز الطبي الموحد.</p>
+                </div>
+                <div className={`flex items-center px-3 py-1 rounded-full text-xs font-bold ${isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    <SignalIcon className="h-4 w-4 me-1" />
+                    {isOnline ? 'متصل بالشبكة' : 'يعمل في وضع الأوفلاين'}
+                </div>
+            </div>
+
+            {/* Cloud Sync Setup */}
+            <div className="bg-white dark:bg-gray-800 border-2 border-blue-100 dark:border-blue-900/30 rounded-xl p-6 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center gap-6">
+                    <div className="flex-1">
+                        <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center mb-1">
+                            <CloudIcon className="h-5 w-5 text-blue-500 me-2" />
+                            إعدادات المزامنة السحابية (Cloud Hub)
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">استخدم "كود العيادة" المشترك لربط المتصفح، التطبيق، وبرنامج الكمبيوتر مع زملائك.</p>
+                    </div>
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <input
+                            type="text"
+                            value={clinicId}
+                            onChange={(e) => setClinicId(e.target.value)}
+                            placeholder="أدخل كود العيادة (مثلاً: GAZA-1)"
+                            className="flex-1 md:w-64 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                        />
+                        <button
+                            onClick={triggerSync}
+                            disabled={isSyncing || !clinicId || !isOnline}
+                            className={`px-6 py-2 rounded-lg font-bold transition flex items-center ${isSyncing ? 'bg-blue-100 text-blue-400' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'} disabled:opacity-50`}
+                        >
+                            {isSyncing ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent me-2"></div>
+                                    جاري الربط...
+                                </>
+                            ) : 'مزامنة الآن'}
+                        </button>
+                    </div>
+                </div>
+                {clinicId && (
+                    <div className="mt-4 pt-4 border-t dark:border-gray-700 flex items-center text-xs text-gray-500">
+                        <div className={`h-2 w-2 rounded-full me-2 ${isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
+                        جهازك مرتبط حالياً بـ: <span className="font-bold text-blue-600 dark:text-blue-400 mx-1">{clinicId}</span>
+                        (سيتم سحب تقارير الزملاء تلقائياً كل 30 ثانية)
+                    </div>
+                )}
             </div>
 
             {/* Stats */}
@@ -58,13 +106,13 @@ const DashboardPage: React.FC = () => {
                                         {report.analysisResult.findings}
                                     </p>
                                     {report.location && (
-                                         <a 
-                                            href={`https://www.google.com/maps/search/?api=1&query=${report.location.lat},${report.location.lng}`} 
-                                            target="_blank" 
+                                        <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${report.location.lat},${report.location.lng}`}
+                                            target="_blank"
                                             rel="noreferrer"
                                             className="text-xs text-blue-500 hover:underline flex items-center mb-2"
                                         >
-                                            <MapPinIcon className="h-3 w-3 me-1"/> الموقع
+                                            <MapPinIcon className="h-3 w-3 me-1" /> الموقع
                                         </a>
                                     )}
                                 </div>
@@ -92,14 +140,14 @@ const DashboardPage: React.FC = () => {
                         icon={ClipboardDocumentListIcon}
                         href="/inventory"
                     />
-                     <QuickActionButton
+                    <QuickActionButton
                         title="المستشار السريري"
                         description="استعلام عن الحالات والبيانات."
                         icon={ChatBubbleLeftRightIcon}
                         href="/chatbot"
                     />
                 </div>
-                
+
                 {/* Recent Updates */}
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">آخر التحديثات الميدانية</h2>
@@ -133,7 +181,7 @@ const DashboardPage: React.FC = () => {
                     )}
                 </div>
             </div>
-            
+
             {/* Protocols */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">بروتوكولات الإسعاف (Offline Reference)</h2>
