@@ -78,6 +78,8 @@ ID: ${displayId}`;
 
     // Scanner Initialization - Simple & Stable
     useEffect(() => {
+        let scanner: any = null;
+
         if (activeTab === 'receive') {
             setScannedReport(null);
             setScanResult(null);
@@ -85,21 +87,36 @@ ID: ${displayId}`;
             isScanningRef.current = false;
 
             const timer = setTimeout(() => {
-                if (!scannerRef.current) {
-                    try {
-                        const scanner = new Html5QrcodeScanner(
-                            "reader",
-                            { fps: 10, qrbox: { width: 250, height: 250 } },
-                            false
-                        );
-                        scannerRef.current = scanner;
-                        scanner.render(onScanSuccess, onScanFailure);
-                    } catch (e) {
-                        // ignore init errors
-                    }
+                try {
+                    scanner = new Html5QrcodeScanner(
+                        "reader",
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 250 },
+                            aspectRatio: 1.0,
+                            showTorchButtonIfSupported: true
+                        },
+                        /* verbose= */ false
+                    );
+                    scannerRef.current = scanner;
+                    scanner.render(onScanSuccess, (error: any) => {
+                        // Suppress frequent framing errors, only log if critical
+                        if (error?.includes?.("Camera not found") || error?.includes?.("Permission denied")) {
+                            setScanError("خطأ: تعذر الوصول للكاميرا. تأكد من منح الأذن.");
+                        }
+                    });
+                } catch (e) {
+                    console.error("Scanner Init Error", e);
+                    setScanError("حدث خطأ أثناء تشغيل الماسح.");
                 }
-            }, 100);
-            return () => clearTimeout(timer);
+            }, 500); // Increased delay for better stability
+
+            return () => {
+                clearTimeout(timer);
+                if (scanner) {
+                    try { scanner.clear(); } catch (e) { }
+                }
+            };
         } else {
             if (scannerRef.current) {
                 try { scannerRef.current.clear(); } catch (e) { }
