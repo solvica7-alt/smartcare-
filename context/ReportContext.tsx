@@ -69,6 +69,17 @@ export const ReportProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return () => clearInterval(interval);
     }, [clinicId, reports]);
 
+    // 🇵🇸 FEATURE: Immediate Sync on Reconnection
+    // Triggers upload as soon as internet comes back
+    useEffect(() => {
+        const handleOnline = () => {
+            console.log('🌐 Network Restored: Triggering Sync...');
+            if (clinicId) triggerSync();
+        };
+        window.addEventListener('online', handleOnline);
+        return () => window.removeEventListener('online', handleOnline);
+    }, [clinicId]);
+
     const addReport = (patient: Patient, analysisResult: AnalysisResult, imagePreviews: string[], status: 'processed' | 'pending_sync' = 'processed'): Report => {
         const now = new Date().toISOString();
         const newReport: Report = {

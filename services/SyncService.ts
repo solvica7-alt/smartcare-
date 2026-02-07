@@ -11,131 +11,79 @@ import { Report } from '../types';
  * All devices sharing the SAME ID will automatically see each other's reports.
  */
 
-// We use a public, anonymous JSON storage API for a "No-Setup" free experience.
-// For production, this should be replaced with a private FHIR-compliant backend.
-// We use a public, anonymous JSON storage API for a "No-Setup" free experience.
-// For production, this should be replaced with a private FHIR-compliant backend.
-const CLOUD_HUB_API = 'https://jsonblob.com/api/jsonBlob';
+// 🇵🇸 Proxy Helper: Bypasses CORS when running on localhost or mobile web
+const getProxiedUrl = (url: string) => {
+    // Add timestamp to prevent caching
+    const noCacheUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+    return 'https://corsproxy.io/?' + encodeURIComponent(noCacheUrl);
+};
 
-// 🇵🇸 GLOBAL MASTER DIRECTORY ID (The "DNS" for Clinics)
-// This blob stores the mapping: { "clinicId": "blobId" }
-// Generated via script: 019c3a0d-c841-7c2b-9589-47f4fd455ac5
-const MASTER_DIRECTORY_ID = '019c3a0d-c841-7c2b-9589-47f4fd455ac5';
+// 🇵🇸 GLOBAL UNIVERSAL STORAGE ID
+// We now store ALL clinics in ONE big JSON object: { "clinicId": [reports...], "anotherId": [...] }
+// This avoids creating new blobs and the associated header issues.
+const UNIVERSAL_STORAGE_ID = '019c3a0d-c841-7c2b-9589-47f4fd455ac5';
+const STORAGE_URL = `https://jsonblob.com/api/jsonBlob/${UNIVERSAL_STORAGE_ID}`;
 
 export const SyncService = {
     /**
-     * Resolves the storage Blob ID for a given Clinic ID using the Master Directory.
-     * If not found, it creates a new storage blob and registers it.
-     */
-    async resolveClinicBlobId(clinicId: string): Promise<string | null> {
-        try {
-            // 1. Check local cache first
-            const cachedId = localStorage.getItem(`cloud_hub_blob_${clinicId}`);
-            if (cachedId) return cachedId;
-
-            // 2. Fetch Master Directory
-            const dirResponse = await fetch(`${CLOUD_HUB_API}/${MASTER_DIRECTORY_ID}`);
-            if (!dirResponse.ok) throw new Error('Failed to fetch Master Directory');
-
-            const directory = await dirResponse.json();
-
-            // 3. Check if Clinic ID exists
-            if (directory[clinicId]) {
-                const blobId = directory[clinicId];
-                localStorage.setItem(`cloud_hub_blob_${clinicId}`, blobId);
-                return blobId;
-            }
-
-            // 4. If new, create a valid storage blob
-            const createResponse = await fetch(CLOUD_HUB_API, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify([]) // Initialize with empty array
-            });
-
-            if (!createResponse.ok) throw new Error('Failed to create new Clinic Storage');
-
-            const location = createResponse.headers.get('Location');
-            if (!location) throw new Error('No Location header in creation response');
-
-            const newBlobId = location.split('/').pop();
-            if (!newBlobId) throw new Error('Invalid Blob ID');
-
-            // 5. Register in Master Directory (Optimistic update)
-            // Note: In high traffic, this needs a read-modify-write loop with ETag, 
-            // but for this scale, simple PUT is acceptable "Free" solution.
-            directory[clinicId] = newBlobId;
-
-            await fetch(`${CLOUD_HUB_API}/${MASTER_DIRECTORY_ID}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify(directory)
-            });
-
-            localStorage.setItem(`cloud_hub_blob_${clinicId}`, newBlobId);
-            return newBlobId;
-
-        } catch (error) {
-            console.error('Resolve Error:', error);
-            // Fallback: If Master fails, use local-only mode or try again later
-            return null;
-        }
-    },
-
-    /**
-     * Fetches the latest reports for a specific Clinic ID from the cloud hub.
+     * Fetches reports directly from the Universal Storage.
      */
     async fetchRemoteReports(clinicId: string): Promise<Report[]> {
         if (!clinicId) return [];
 
         try {
-            const blobId = await this.resolveClinicBlobId(clinicId);
-            if (!blobId) return [];
+            const response = await fetch(getProxiedUrl(STORAGE_URL));
+            if (!response.ok) throw new Error('فشل الاتصال بالمخزن السحابي');
 
-            const response = await fetch(`${CLOUD_HUB_API}/${blobId}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
+            const allData = await response.json();
+            // Data structure is { "clinicId": [reports], ... }
+            // If clinicId is strictly mapped to a blobId string (legacy), we handle that too, 
+            // but we are checking if it's an ARRAY of reports.
 
-            if (!response.ok) {
-                if (response.status === 404) return [];
-                throw new Error('فشل الاتصال بالموزع السحابي.');
+            const clinicData = allData[clinicId];
+            if (Array.isArray(clinicData)) {
+                return clinicData;
             }
+            return [];
 
-            return await response.json();
         } catch (error) {
             console.error('Fetch Error:', error);
+            // Return empty if offline or error, so app continues locally
             return [];
         }
     },
 
     /**
-     * Pushes local reports to the cloud hub.
-     * Merges with existing cloud data based on timestamps (LWW - Last Write Wins).
+     * Syncs local reports to the Universal Storage.
      */
     async syncToCloud(clinicId: string, localReports: Report[]): Promise<Report[]> {
         if (!clinicId || !navigator.onLine) return localReports;
 
         try {
-            const blobId = await this.resolveClinicBlobId(clinicId);
-            if (!blobId) return localReports;
+            // 1. Get current universal state
+            const response = await fetch(getProxiedUrl(STORAGE_URL));
+            let allData: Record<string, any> = {};
 
-            // Fetch current remote state to merge
-            const response = await fetch(`${CLOUD_HUB_API}/${blobId}`);
-            let remoteReports: Report[] = [];
             if (response.ok) {
-                remoteReports = await response.json();
+                allData = await response.json();
             }
 
-            // Create a map for easy merging
+            // 2. Extract THIS clinic's existing remote reports
+            let remoteReports: Report[] = [];
+            if (Array.isArray(allData[clinicId])) {
+                remoteReports = allData[clinicId];
+            }
+
+            // 3. Merge Strategy (Last Write Wins)
             const reportMap = new Map<string, Report>();
 
             // Add remote ones first
             remoteReports.forEach(r => reportMap.set(r.id, r));
 
-            // Merge local ones (Last Write Wins)
+            // Merge local ones
             localReports.forEach(local => {
                 const remote = reportMap.get(local.id);
+                // If local is newer or remote doesn't exist
                 if (!remote || new Date(local.updatedAt) > new Date(remote.updatedAt)) {
                     reportMap.set(local.id, { ...local, syncStatus: 'synced' });
                 }
@@ -143,20 +91,29 @@ export const SyncService = {
 
             const mergedList = Array.from(reportMap.values());
 
-            // Persist to Cloud Hub
-            await fetch(`${CLOUD_HUB_API}/${blobId}`, {
+            // 4. Update the Universal Object
+            allData[clinicId] = mergedList;
+
+            // 5. Save back to Cloud (PUT)
+            // Note: This replaces the whole blob. In a real backend, we'd patch.
+            // But for jsonblob, we must PUT the whole updated JSON.
+            await fetch(getProxiedUrl(STORAGE_URL), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify(mergedList)
+                body: JSON.stringify(allData)
             });
 
             return mergedList;
+
         } catch (error) {
             console.error('Sync Error:', error);
             return localReports;
         }
-    }
+    },
+
+    // Legacy method kept empty to prevent import errors if called elsewhere
+    async resolveClinicBlobId(clinicId: string) { return null; }
 };

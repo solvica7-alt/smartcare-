@@ -108,36 +108,51 @@ const PatientFormPage: React.FC = () => {
 
         const handleManualInput = (reason: string) => {
             setIsLocating(false);
-            setError(reason); // Notify user why it failed
+            console.warn(reason); // Log warning but don't force error immediately
             setShowManualInput(true);
         };
 
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setPatient(prev => ({
-                        ...prev,
-                        location: {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude
-                        }
-                    }));
-                    setIsLocating(false);
-                },
-                (error) => {
-                    console.warn("Location error:", error);
-                    let msg = "تعذر تحديد الموقع تلقائياً.";
-                    if (error.code === error.TIMEOUT) msg = "انتهت مهلة تحديد الموقع.";
-                    if (error.code === error.PERMISSION_DENIED) msg = "تم رفض إذن الوصول للموقع.";
-                    if (error.code === error.POSITION_UNAVAILABLE) msg = "معلومات الموقع غير متوفرة (تأكد من اتصال الإنترنت).";
-
-                    handleManualInput(msg);
-                },
-                { enableHighAccuracy: false, timeout: 5000, maximumAge: Infinity }
-            );
-        } else {
+        // 🇵🇸 FEATURE: Hybrid GPS Logic
+        // Try GPS first. If it fails (or is offline), fall back to manual.
+        if (!navigator.geolocation) {
             handleManualInput("المتصفح لا يدعم تحديد الموقع.");
+            return;
         }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setPatient(prev => ({
+                    ...prev,
+                    location: {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    }
+                }));
+                setIsLocating(false);
+            },
+            (error) => {
+                console.warn("Location error:", error);
+                let msg = "تعذر تحديد الموقع تلقائياً.";
+
+                if (error.code === error.PERMISSION_DENIED) {
+                    msg = "⚠️ تم رفض الإذن. يرجى السماح بتحديد الموقع من شريط العنوان (أيقونة القفل/الموقع) ثم حاول مرة أخرى.";
+                } else if (error.code === error.TIMEOUT) {
+                    msg = "انتهت مهلة تحديد الموقع (تأكد من تفعيل GPS أو جرب مكان مفتوح).";
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    msg = "معلومات الموقع غير متوفرة.";
+                }
+
+                // If offline or GPS fails, show manual input
+                handleManualInput(msg);
+            },
+            // 🇵🇸 FIX: Disable high accuracy for better speed/desktop compatibility
+            // Increase timeout to 15s
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 }
+        );
+    };
+
+    const toggleManualInput = () => {
+        setShowManualInput(!showManualInput);
     };
 
     const confirmManualLocation = () => {
@@ -271,10 +286,16 @@ const PatientFormPage: React.FC = () => {
                 </div>
 
                 <div>
-                    <button type="button" onClick={getLocation} disabled={isLocating} className={`flex items-center text-sm ${isLocating ? 'text-gray-500' : 'text-blue-600 hover:text-blue-800'}`}>
-                        <MapPinIcon className={`h-5 w-5 me-1 ${isLocating ? 'animate-bounce' : ''}`} />
-                        {isLocating ? 'جاري محاولة تحديد الموقع...' : (patient.location ? `تم تحديد الموقع: ${patient.location.lat.toFixed(4)}, ${patient.location.lng.toFixed(4)}` : 'تحديد موقع الإصابة GPS (يعمل Offline)')}
-                    </button>
+                    <div className="flex items-center space-x-2 space-x-reverse">
+                        <button type="button" onClick={getLocation} disabled={isLocating} className={`flex items-center text-sm ${isLocating ? 'text-gray-500' : 'text-blue-600 hover:text-blue-800'}`}>
+                            <MapPinIcon className={`h-5 w-5 me-1 ${isLocating ? 'animate-bounce' : ''}`} />
+                            {isLocating ? 'جاري محاولة تحديد الموقع...' : (patient.location ? `تم تحديد الموقع: ${patient.location.lat.toFixed(4)}, ${patient.location.lng.toFixed(4)}` : 'تحديد الموقع تلقائياً (GPS)')}
+                        </button>
+                        <span className="text-gray-300">|</span>
+                        <button type="button" onClick={toggleManualInput} className="text-sm text-gray-500 hover:text-gray-700 underline decoration-dotted">
+                            {showManualInput ? 'إخفاء الإدخال اليدوي' : 'إدخال يدوياً'}
+                        </button>
+                    </div>
 
                     {showManualInput && (
                         <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600 animate-fade-in transition-all">
