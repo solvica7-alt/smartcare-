@@ -1,6 +1,6 @@
 
 // A simple service worker to cache the app shell
-const CACHE_NAME = 'smartcare-v2';
+const CACHE_NAME = 'smartcare-v3';
 const urlsToCache = [
   '/',
   '/index.html',

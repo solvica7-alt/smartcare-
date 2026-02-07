@@ -13,17 +13,28 @@ import { Report } from '../types';
 
 // 🇵🇸 Proxy Helper: Bypasses CORS when running on localhost or mobile web
 const getProxiedUrl = (url: string) => {
-    // 🇵🇸 FIX: Only use proxy on localhost to avoid 403 Forbidden in Production (Netlify)
+    // 🇵🇸 FIX: Use Netlify Rewrite Proxy in production to bypass CORS
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     // Add timestamp to prevent caching
-    const noCacheUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+    const timestamp = '?t=' + Date.now();
 
     if (isLocal) {
+        const noCacheUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
         return 'https://corsproxy.io/?' + encodeURIComponent(noCacheUrl);
     }
 
-    return noCacheUrl;
+    // In production (Netlify), use the local proxy rule: /api/sync/ID
+    // Robust extraction: find UUID after /jsonBlob/
+    const match = url.match(/\/jsonBlob\/([a-z0-9-]+)/);
+    const blobId = match ? match[1] : null;
+
+    if (blobId) {
+        return `/api/sync/${blobId}${timestamp}`;
+    }
+
+    // Fallback if extraction fails
+    return url + timestamp;
 };
 
 // 🇵🇸 GLOBAL UNIVERSAL STORAGE ID

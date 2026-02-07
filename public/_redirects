@@ -1,5 +1,8 @@
-# Netlify Redirects Rule for SPA
-/*    /index.html   200
+# Netlify Redirects Rule
+# 🇵🇸 RULES ARE PROCESSED TOP-TO-BOTTOM. SPECIFIC RULES FIRST!
 
-# Proxy JSONBlob requests to avoid CORS
+# 1. Proxy JSONBlob requests (Must be before SPA rule)
 /api/sync/*  https://jsonblob.com/api/jsonBlob/:splat  200!
+
+# 2. SPA Catch-all (Must be last)
+/*    /index.html   200
