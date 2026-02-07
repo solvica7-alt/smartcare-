@@ -1,0 +1,70 @@
+/* Professional Medical Table Styles */
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    text-align: right;
+    background-color: white;
+}
+
+.dark .markdown-content table {
+    background-color: #374151;
+}
+
+.markdown-content th, 
+.markdown-content td {
+    padding: 12px 15px;
+    border: 1px solid #e5e7eb;
+}
+
+.dark .markdown-content th, 
+.dark .markdown-content td {
+    border-color: #4b5563;
+}
+
+.markdown-content th {
+    background-color: #f3f4f6;
+    font-weight: bold;
+    color: #1f2937;
+}
+
+.dark .markdown-content th {
+    background-color: #1f2937;
+    color: #f9fafb;
+}
+
+.markdown-content tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.dark .markdown-content tr:nth-child(even) {
+    background-color: #1f2937;
+}
+
+.markdown-content h1, 
+.markdown-content h2, 
+.markdown-content h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.markdown-content h1 { font-size: 1.5rem; }
+.markdown-content h2 { font-size: 1.25rem; }
+.markdown-content h3 { font-size: 1.125rem; }
+
+.markdown-content p {
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.markdown-content ul, 
+.markdown-content ol {
+    margin-bottom: 1rem;
+    padding-right: 1.5rem;
+}
+
+.markdown-content li {
+    margin-bottom: 0.25rem;
+}

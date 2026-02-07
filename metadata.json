@@ -1,0 +1,9 @@
+{
+  "name": "SmartCare",
+  "description": "A smart healthcare platform to assist patients and medics in disaster areas by collecting medical images, analyzing them with AI, and connecting patients to volunteer doctors for immediate guidance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

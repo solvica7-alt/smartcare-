@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SmartCare</string>
+    <string name="title_activity_main">SmartCare</string>
+    <string name="package_name">com.smartcare.app</string>
+    <string name="custom_url_scheme">com.smartcare.app</string>
+</resources>

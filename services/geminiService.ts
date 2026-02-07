@@ -1,0 +1,322 @@
+import { AnalysisResult, Patient, Report } from '../types';
+
+const API_KEYS = [
+    "AIzaSyDwNKcHL3nfXjsk-xX1S84Dx6FAxeUSB8k", // Original Working Key (Primary)
+    "AIzaSyC-L81jNnpCHAIjP-1gNbbLWvgdKkcSKC0",
+    "AIzaSyAjlREYAwe8Zhw1xR9m-b9OJGXrC-zOZjs",
+    "AIzaSyDdjtW4EKJBcLvc-Rb6RbSvYhn3u9druKc",
+    "AIzaSyCeK_P9idBHYNYIz4YT59yiwDG44UFvr4E",
+    "AIzaSyBBeUqv2sGnk_1py2GE9_5sixQ-I17q21U"
+];
+
+const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const MODEL = "gemini-flash-latest";
+
+// Internal helper to call Google Gemini API via REST with Key Rotation
+async function callGeminiAPI(payload: any) {
+    let lastError: any = null;
+
+    for (const rawKey of API_KEYS) {
+        const apiKey = rawKey.trim();
+        try {
+            const response = await fetch(`${BASE_URL}/${MODEL}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Gemini API Key Error (${response.status}):`, errorText);
+
+                if (response.status === 429 || response.status === 403 || response.status >= 500) {
+                    console.warn(`Attempting key rotation due to status ${response.status}...`);
+                    lastError = new Error(`API ${response.status}: ${errorText}`);
+                    continue;
+                }
+                throw new Error(`Critical API Error ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log("Gemini API Success Response:", data);
+
+            if (!data.candidates || data.candidates.length === 0) {
+                console.error("Gemini Blocked Content:", data.promptFeedback);
+                throw new Error("No response generated (possibly blocked).");
+            }
+
+            return data.candidates[0].content.parts[0].text;
+
+        } catch (error) {
+            console.warn(`Attempt failed with key ...${apiKey.slice(-4)}:`, error);
+            lastError = error;
+            // Continue to next key
+        }
+    }
+
+    // If we exit the loop, all keys failed
+    throw lastError || new Error("All Gemini API keys failed. Please check internet connection or quota.");
+}
+
+const analysisSchema = {
+    type: "OBJECT",
+    properties: {
+        risk_level: {
+            type: "STRING",
+            description: "Risk level for the patient case, must be one of: 'منخفض', 'متوسط', 'مرتفع' (Low, Medium, High in Arabic).",
+        },
+        triage_color: {
+            type: "STRING",
+            description: "START Triage Protocol color classification. Must be one of: 'red' (Immediate), 'yellow' (Delayed), 'green' (Minor), 'black' (Deceased/Expectant). Based on respiration, perfusion, and mental status inferred from symptoms.",
+            enum: ['red', 'yellow', 'green', 'black']
+        },
+        findings: {
+            type: "STRING",
+            description: "A concise summary of the visual findings from all images, combined with patient data, in Arabic. Describe what you see that is medically relevant."
+        },
+        red_flags: {
+            type: "ARRAY",
+            description: "A list of critical observations or 'red flags' that require immediate attention, in Arabic. If none, return an empty array.",
+            items: {
+                type: "STRING"
+            }
+        },
+        medical_recommendations: {
+            type: "ARRAY",
+            description: "List of immediate medical actions or first-aid steps recommended for this specific case, in Arabic. Be specific (e.g., 'Apply direct pressure', 'Elevate limb').",
+            items: {
+                type: "STRING"
+            }
+        }
+    },
+    required: ['risk_level', 'triage_color', 'findings', 'red_flags', 'medical_recommendations']
+};
+
+// Add medical_recommendations to the schema definition locally to avoid TypeScript errors if it's not in the type definition yet
+// Ideally, update 'AnalysisResult' type in '../types.ts' to include 'medical_recommendations?: string[]'
+
+
+export const analyzeMedicalImage = async (
+    base64Images: { data: string; mimeType: string }[],
+    patientInfo: Patient
+): Promise<AnalysisResult> => {
+
+    // Prepare inputs for Gemini
+    // Gemini REST API expects parts: [{ text: "..." }, { inlineData: { mimeType: "...", data: "..." } }]
+    const parts: any[] = [];
+
+    // Add images
+    base64Images.forEach(img => {
+        parts.push({
+            inlineData: {
+                mimeType: img.mimeType,
+                data: img.data
+            }
+        });
+    });
+
+    const promptText = `
+        Please act as a medical assistant AI specializing in Disaster Medicine and the START Triage Protocol.
+        Analyze the attached medical image(s) and patient information.
+        
+        Patient Information:
+        - Age: ${patientInfo.age}
+        - General Symptoms: ${patientInfo.symptoms.join(', ')}
+        - Detailed Symptoms: ${patientInfo.detailedSymptoms || 'Not provided'}
+        - Additional Notes: ${patientInfo.notes || 'Not provided'}
+
+        Your task is to provide a single, consolidated triage analysis.
+        
+        Apply the START Triage Protocol Logic:
+        1. **Black (Deceased/Expectant)**: No respiration or catastrophic injury incompatible with life.
+        2. **Red (Immediate)**: Respiratory rate > 30, OR No radial pulse/capillary refill > 2s, OR Unable to follow commands (altered mental status).
+        3. **Yellow (Delayed)**: Serious but stable. Cannot walk but respirations, pulse, and mental status are normal.
+        4. **Green (Minor)**: "Walking wounded". Minor injuries.
+
+        Your response MUST be in Arabic and formatted as a JSON object matching this schema:
+        ${JSON.stringify(analysisSchema, null, 2)}
+        
+        IMPORTANT: Return ONLY the JSON object. Do not wrap it in markdown block.
+    `;
+
+    parts.push({ text: promptText });
+
+    try {
+        const textResponse = await callGeminiAPI({
+            contents: [{ parts: parts }]
+        });
+
+
+        // Robust JSON Parsing
+        // 1. Remove markdown code blocks if present
+        let cleanText = textResponse.replace(/^[\s\S]*?```json/gm, '').replace(/```[\s\S]*?$/gm, '');
+        // 2. Trim whitespace
+        cleanText = cleanText.trim();
+
+        try {
+            return JSON.parse(cleanText) as AnalysisResult;
+        } catch (jsonError) {
+            console.error("JSON Parse Error. Raw text:", textResponse);
+            // Fallback: Try to find the first '{' and last '}'
+            const firstBrace = textResponse.indexOf('{');
+            const lastBrace = textResponse.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                const subString = textResponse.substring(firstBrace, lastBrace + 1);
+                return JSON.parse(subString) as AnalysisResult;
+            }
+            throw new Error("Invalid JSON structure in AI response.");
+        }
+
+    } catch (error) {
+        console.error("Analysis and Parsing Failed:", error);
+        throw new Error("Medical Analysis Failed. Please check your internet connection and try again.");
+    }
+};
+
+export const getClinicalAssistantResponse = async (query: string, reports: Report[]): Promise<string> => {
+    const reportsContext = JSON.stringify(reports.map(r => ({
+        patientName: r.patientName,
+        age: r.patientAge,
+        symptoms: r.symptoms,
+        triage: r.analysisResult.triage_color,
+        analysis: r.analysisResult.findings,
+    })));
+
+    const prompt = `
+        أنت الآن "المستشار الطبي الذكي" (Medical AI Agent) - خبير استشاري أول مدعوم بأحدث الأبحاث والبروتوكولات الطبية العالمية.
+        دورك هو تقديم تقارير طبية رسمية، تفصيلية، ومنظمة جداً للأطباء والمسعفين.
+
+        **سياق التقارير المتاحة في قاعدة بيانات المستشفى:**
+        ${reportsContext}
+
+        ---
+        **سؤال المستخدم (الاستشارة المطلوبة):**
+        "${query}"
+        ---
+
+        **تعليمات الرد (نموذج الاستشاري الطبي - بروتوكول SBAR):**
+        1. **الهوية:** أنت الآن "استشاري أول لطب الطوارئ والكوارث". مهمتك هي تحليل البيانات التي جمعها "المسعفون" في الميدان وتقديم ملخص احترافي لـ "الطبيب" المستقبل للحالة.
+        2. **بروتوكول SBAR:** عند تلخيص حالة مريض، استخدم بروتوكول التسليم العالمي SBAR:
+           - **Situation (الوضع):** ما الذي يحدث حالياً؟
+           - **Background (الخلفية):** التاريخ الطبي والأعراض الحالية.
+           - **Assessment (التقييم):** ما هو استنتاجك بناءً على بروتوكول START Triage؟
+           - **Recommendation (التوصية):** ما هي الخطوة الطبية التالية العاجلة؟
+        3. **الجداول (Markdown Tables):** **إلزامي** للمقارنة بين المرضى أو عرض المؤشرات الحيوية.
+        4. **اللغة:** عربية طبية فصحى، دقيقة، ومباشرة.
+        5. **الربط الميداني-السريري:** أكد للطبيب أن هذه البيانات تم جمعها ميدانياً وساعده في اتخاذ قرار التدخل الجراحي أو الإخلاء فوراً بناءً على الأولويات الطبية (START Triage).
+        6. **المصادر:** اعتمد على معايير الجودة العالمية (WHO, ATLS, Red Cross).
+    `;
+
+    try {
+        return await callGeminiAPI({
+            contents: [{ parts: [{ text: prompt }] }]
+        });
+    } catch (error) {
+        console.error("Error getting assistant response:", error);
+        return "تعذر الحصول على إجابة من المساعد.";
+    }
+};
+
+export const compareMedicalImages = async (oldImage: { data: string, mimeType: string }, newImage: { data: string, mimeType: string }, context: string): Promise<string> => {
+    const prompt = `
+        Act as a medical expert. Compare these two images of a patient's injury.
+        Image 1 is the PREVIOUS state.
+        Image 2 is the CURRENT state.
+        Context: ${context}
+        
+        Question: Is the condition improving, worsening, or stable? Describe the changes in the wound/injury (e.g., size, color, signs of infection, healing tissue).
+        
+        Answer in Arabic.
+    `;
+
+    try {
+        const parts = [
+            { inlineData: { mimeType: oldImage.mimeType, data: oldImage.data } },
+            { inlineData: { mimeType: newImage.mimeType, data: newImage.data } },
+            { text: prompt }
+        ];
+
+        return await callGeminiAPI({
+            contents: [{ parts: parts }]
+        });
+    } catch (error) {
+        console.error("Error in comparative analysis:", error);
+        throw new Error("Failed to compare images.");
+    }
+};
+
+export const generateInventorySuggestion = async (reports: Report[]): Promise<string> => {
+    const symptomsSummary = reports.map(r => r.symptoms.join(', ')).join('; ');
+    const injuriesSummary = reports.map(r => r.analysisResult.findings).join('; ');
+
+    const prompt = `
+        Based on the following list of patient symptoms and injury findings from a disaster zone:
+        "${symptomsSummary} | ${injuriesSummary}"
+
+        Suggest a prioritized list of medical supplies and inventory needed to treat these specific cases (e.g., if many burns, suggest burn ointment and gauze).
+        Format the response as a clear, bulleted list in Arabic.
+     `;
+
+    try {
+        return await callGeminiAPI({
+            contents: [{ parts: [{ text: prompt }] }]
+        });
+    } catch (error) {
+        console.error("Error generating inventory:", error);
+        return "تعذر إنشاء قائمة المخزون حالياً.";
+    }
+};
+
+export const translateText = async (text: string, targetLanguage: string = 'Arabic'): Promise<string> => {
+    const prompt = `Translate the following text to ${targetLanguage}. If it is already in that language, translate it to English. Only provide the translation. Text: "${text}"`;
+    try {
+        return await callGeminiAPI({
+            contents: [{ parts: [{ text: prompt }] }]
+        });
+    } catch (error) {
+        return "تعذر الترجمة.";
+    }
+}
+
+export const sendChatResponse = async (messages: { role: 'user' | 'assistant' | 'system', content: string, attachments?: { data: string, mimeType: string }[] }[]): Promise<string> => {
+    try {
+        const systemMessage = messages.find(m => m.role === 'system');
+        const chatHistory = messages.filter(m => m.role !== 'system').map(m => {
+            const parts: any[] = [{ text: m.content }];
+
+            if (m.attachments) {
+                m.attachments.forEach(att => {
+                    parts.push({
+                        inlineData: {
+                            mimeType: att.mimeType,
+                            data: att.data
+                        }
+                    });
+                });
+            }
+
+            return {
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: parts
+            };
+        });
+
+        const payload: any = {
+            contents: chatHistory
+        };
+
+        if (systemMessage) {
+            payload.system_instruction = {
+                parts: [{ text: systemMessage.content }]
+            };
+        }
+
+        return await callGeminiAPI(payload);
+    } catch (error) {
+        console.error("Error sending chat message:", error);
+        throw new Error("Failed to get chat response.");
+    }
+};
+
