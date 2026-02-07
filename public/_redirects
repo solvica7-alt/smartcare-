@@ -1,0 +1,5 @@
+# Netlify Redirects Rule for SPA
+/*    /index.html   200
+
+# Proxy JSONBlob requests to avoid CORS
+/api/sync/*  https://jsonblob.com/api/jsonBlob/:splat  200!
