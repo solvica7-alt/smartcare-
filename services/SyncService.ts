@@ -13,9 +13,17 @@ import { Report } from '../types';
 
 // 🇵🇸 Proxy Helper: Bypasses CORS when running on localhost or mobile web
 const getProxiedUrl = (url: string) => {
+    // 🇵🇸 FIX: Only use proxy on localhost to avoid 403 Forbidden in Production (Netlify)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
     // Add timestamp to prevent caching
     const noCacheUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
-    return 'https://corsproxy.io/?' + encodeURIComponent(noCacheUrl);
+
+    if (isLocal) {
+        return 'https://corsproxy.io/?' + encodeURIComponent(noCacheUrl);
+    }
+
+    return noCacheUrl;
 };
 
 // 🇵🇸 GLOBAL UNIVERSAL STORAGE ID
