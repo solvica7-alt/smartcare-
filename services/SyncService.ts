@@ -13,9 +13,75 @@ import { Report } from '../types';
 
 // We use a public, anonymous JSON storage API for a "No-Setup" free experience.
 // For production, this should be replaced with a private FHIR-compliant backend.
+// We use a public, anonymous JSON storage API for a "No-Setup" free experience.
+// For production, this should be replaced with a private FHIR-compliant backend.
 const CLOUD_HUB_API = 'https://jsonblob.com/api/jsonBlob';
 
+// 🇵🇸 GLOBAL MASTER DIRECTORY ID (The "DNS" for Clinics)
+// This blob stores the mapping: { "clinicId": "blobId" }
+// Generated via script: 06513acd-a11b-4fd5-a060-f6a5136acd03
+const MASTER_DIRECTORY_ID = '06513acd-a11b-4fd5-a060-f6a5136acd03';
+
 export const SyncService = {
+    /**
+     * Resolves the storage Blob ID for a given Clinic ID using the Master Directory.
+     * If not found, it creates a new storage blob and registers it.
+     */
+    async resolveClinicBlobId(clinicId: string): Promise<string | null> {
+        try {
+            // 1. Check local cache first
+            const cachedId = localStorage.getItem(`cloud_hub_blob_${clinicId}`);
+            if (cachedId) return cachedId;
+
+            // 2. Fetch Master Directory
+            const dirResponse = await fetch(`${CLOUD_HUB_API}/${MASTER_DIRECTORY_ID}`);
+            if (!dirResponse.ok) throw new Error('Failed to fetch Master Directory');
+
+            const directory = await dirResponse.json();
+
+            // 3. Check if Clinic ID exists
+            if (directory[clinicId]) {
+                const blobId = directory[clinicId];
+                localStorage.setItem(`cloud_hub_blob_${clinicId}`, blobId);
+                return blobId;
+            }
+
+            // 4. If new, create a valid storage blob
+            const createResponse = await fetch(CLOUD_HUB_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify([]) // Initialize with empty array
+            });
+
+            if (!createResponse.ok) throw new Error('Failed to create new Clinic Storage');
+
+            const location = createResponse.headers.get('Location');
+            if (!location) throw new Error('No Location header in creation response');
+
+            const newBlobId = location.split('/').pop();
+            if (!newBlobId) throw new Error('Invalid Blob ID');
+
+            // 5. Register in Master Directory (Optimistic update)
+            // Note: In high traffic, this needs a read-modify-write loop with ETag, 
+            // but for this scale, simple PUT is acceptable "Free" solution.
+            directory[clinicId] = newBlobId;
+
+            await fetch(`${CLOUD_HUB_API}/${MASTER_DIRECTORY_ID}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(directory)
+            });
+
+            localStorage.setItem(`cloud_hub_blob_${clinicId}`, newBlobId);
+            return newBlobId;
+
+        } catch (error) {
+            console.error('Resolve Error:', error);
+            // Fallback: If Master fails, use local-only mode or try again later
+            return null;
+        }
+    },
+
     /**
      * Fetches the latest reports for a specific Clinic ID from the cloud hub.
      */
@@ -23,12 +89,10 @@ export const SyncService = {
         if (!clinicId) return [];
 
         try {
-            // We use the clinicId as a unique identifier in the Cloud Hub
-            // Note: Real implementation would use a stable URL or a search index.
-            const savedBlobId = localStorage.getItem(`blob_id_${clinicId}`);
-            if (!savedBlobId) return [];
+            const blobId = await this.resolveClinicBlobId(clinicId);
+            if (!blobId) return [];
 
-            const response = await fetch(`${CLOUD_HUB_API}/${savedBlobId}`, {
+            const response = await fetch(`${CLOUD_HUB_API}/${blobId}`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -53,7 +117,15 @@ export const SyncService = {
         if (!clinicId || !navigator.onLine) return localReports;
 
         try {
-            const remoteReports = await this.fetchRemoteReports(clinicId);
+            const blobId = await this.resolveClinicBlobId(clinicId);
+            if (!blobId) return localReports;
+
+            // Fetch current remote state to merge
+            const response = await fetch(`${CLOUD_HUB_API}/${blobId}`);
+            let remoteReports: Report[] = [];
+            if (response.ok) {
+                remoteReports = await response.json();
+            }
 
             // Create a map for easy merging
             const reportMap = new Map<string, Report>();
@@ -72,34 +144,14 @@ export const SyncService = {
             const mergedList = Array.from(reportMap.values());
 
             // Persist to Cloud Hub
-            let blobId = localStorage.getItem(`blob_id_${clinicId}`);
-            let url = `${CLOUD_HUB_API}`;
-            let method = 'POST';
-
-            if (blobId) {
-                url = `${CLOUD_HUB_API}/${blobId}`;
-                method = 'PUT';
-            }
-
-            const response = await fetch(url, {
-                method: method,
+            await fetch(`${CLOUD_HUB_API}/${blobId}`, {
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify(mergedList)
             });
-
-            if (!response.ok) throw new Error('فشل مزامنة البيانات.');
-
-            // Capture the Blob ID for future updates if it's new
-            if (method === 'POST') {
-                const location = response.headers.get('Location');
-                if (location) {
-                    const newId = location.split('/').pop();
-                    if (newId) localStorage.setItem(`blob_id_${clinicId}`, newId);
-                }
-            }
 
             return mergedList;
         } catch (error) {
