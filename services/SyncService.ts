@@ -6,6 +6,9 @@ import { Report } from '../types';
  * 
  * Provides real-time synchronization between Web, Mobile, and Desktop devices
  * using a shared Clinic ID. Handles offline-to-online transitions automatically.
+ * 
+ * NOTE: The Clinic ID can be ANY string or number (e.g., "GAZA-1", "12345", "UNIT-7").
+ * All devices sharing the SAME ID will automatically see each other's reports.
  */
 
 // We use a public, anonymous JSON storage API for a "No-Setup" free experience.
