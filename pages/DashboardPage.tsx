@@ -47,18 +47,18 @@ const DashboardPage: React.FC = () => {
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400">استخدم "كود العيادة" المشترك لربط المتصفح، التطبيق، وبرنامج الكمبيوتر مع زملائك.</p>
                     </div>
-                    <div className="flex gap-2 w-full md:w-auto">
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                         <input
                             type="text"
                             value={clinicId}
                             onChange={(e) => setClinicId(e.target.value)}
                             placeholder="أدخل كود العيادة (مثلاً: GAZA-1)"
-                            className="flex-1 md:w-64 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                            className="w-full sm:w-64 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-center sm:text-right"
                         />
                         <button
                             onClick={triggerSync}
                             disabled={isSyncing || !clinicId || !isOnline}
-                            className={`px-6 py-2 rounded-lg font-bold transition flex items-center ${isSyncing ? 'bg-blue-100 text-blue-400' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'} disabled:opacity-50`}
+                            className={`px-6 py-2 rounded-lg font-bold transition flex items-center justify-center whitespace-nowrap ${isSyncing ? 'bg-blue-100 text-blue-400' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'} disabled:opacity-50 w-full sm:w-auto`}
                         >
                             {isSyncing ? (
                                 <>

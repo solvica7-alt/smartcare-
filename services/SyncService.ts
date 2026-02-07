@@ -19,8 +19,8 @@ const CLOUD_HUB_API = 'https://jsonblob.com/api/jsonBlob';
 
 // 🇵🇸 GLOBAL MASTER DIRECTORY ID (The "DNS" for Clinics)
 // This blob stores the mapping: { "clinicId": "blobId" }
-// Generated via script: 06513acd-a11b-4fd5-a060-f6a5136acd03
-const MASTER_DIRECTORY_ID = '06513acd-a11b-4fd5-a060-f6a5136acd03';
+// Generated via script: 019c3a0d-c841-7c2b-9589-47f4fd455ac5
+const MASTER_DIRECTORY_ID = '019c3a0d-c841-7c2b-9589-47f4fd455ac5';
 
 export const SyncService = {
     /**
