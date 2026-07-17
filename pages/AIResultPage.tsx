@@ -85,9 +85,9 @@ const AIResultPage: React.FC = () => {
                     </div>
                     <div>
                         <h2 className="text-xl font-semibold text-gray-700 mb-2">علامات تحذيرية</h2>
-                        {analysisResult.red_flags.length > 0 ? (
+                        {(analysisResult.red_flags?.length || 0) > 0 ? (
                             <ul className="list-disc list-inside space-y-1 bg-red-50 p-4 rounded-md border border-red-200">
-                                {analysisResult.red_flags.map((flag, index) => (
+                                {analysisResult.red_flags?.map((flag, index) => (
                                     <li key={index} className="text-red-700">{flag}</li>
                                 ))}
                             </ul>
