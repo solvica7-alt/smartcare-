@@ -4,10 +4,12 @@ import { useReports } from '../context/ReportContext';
 import { DocumentPlusIcon, ChatBubbleLeftRightIcon, ArrowUpRightIcon, ExclamationTriangleIcon, ClipboardDocumentListIcon, MapPinIcon, CloudIcon, SignalIcon } from '@heroicons/react/24/solid';
 import { FAQ_DATA } from '../constants';
 import { FaqItem } from '../types';
+import { useI18n } from '../context/I18nContext';
 
 const DashboardPage: React.FC = () => {
     const { reports, clinicId, setClinicId, triggerSync, isSyncing } = useReports();
     const isOnline = navigator.onLine;
+    const { t, dir } = useI18n();
 
     // START Protocol colors
     const redCount = reports.filter(r => r.analysisResult.triage_color === 'red').length;
@@ -25,15 +27,15 @@ const DashboardPage: React.FC = () => {
     }, [criticalReports.length]);
 
     return (
-        <div className="space-y-8" dir="rtl">
+        <div className="space-y-8" dir={dir}>
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">لوحة التحكم والمراقبة</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">نظام إدارة الكوارث والفرز الطبي الموحد.</p>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">{t('dashboardTitle')}</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">{t('dashboardSubtitle')}</p>
                 </div>
                 <div className={`flex items-center px-3 py-1 rounded-full text-xs font-bold ${isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    <SignalIcon className="h-4 w-4 me-1" />
-                    {isOnline ? 'متصل بالشبكة' : 'يعمل في وضع الأوفلاين'}
+                    <SignalIcon className={`h-4 w-4 ${dir === 'rtl' ? 'me-1' : 'ms-1'}`} />
+                    {isOnline ? t('online') : t('offline')}
                 </div>
             </div>
 
@@ -42,18 +44,18 @@ const DashboardPage: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-center gap-6">
                     <div className="flex-1">
                         <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center mb-1">
-                            <CloudIcon className="h-5 w-5 text-blue-500 me-2" />
-                            إعدادات المزامنة السحابية (Cloud Hub)
+                            <CloudIcon className={`h-5 w-5 text-blue-500 ${dir === 'rtl' ? 'me-2' : 'ms-2'}`} />
+                            {t('cloudHub')}
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">استخدم "كود العيادة" المشترك لربط المتصفح، التطبيق، وبرنامج الكمبيوتر مع زملائك.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('cloudHubDesc')}</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                         <input
                             type="text"
                             value={clinicId}
                             onChange={(e) => setClinicId(e.target.value)}
-                            placeholder="أدخل كود العيادة (مثلاً: GAZA-1)"
-                            className="w-full sm:w-64 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-center sm:text-right"
+                            placeholder={t('clinicCode')}
+                            className={`w-full sm:w-64 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-center ${dir === 'rtl' ? 'sm:text-right' : 'sm:text-left'}`}
                         />
                         <button
                             onClick={triggerSync}
@@ -62,46 +64,46 @@ const DashboardPage: React.FC = () => {
                         >
                             {isSyncing ? (
                                 <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent me-2"></div>
-                                    جاري الربط...
+                                    <div className={`animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent ${dir === 'rtl' ? 'me-2' : 'ms-2'}`}></div>
+                                    {t('syncing')}
                                 </>
-                            ) : 'مزامنة الآن'}
+                            ) : t('syncNow')}
                         </button>
                     </div>
                 </div>
                 {clinicId && (
                     <div className="mt-4 pt-4 border-t dark:border-gray-700 flex items-center text-xs text-gray-500">
-                        <div className={`h-2 w-2 rounded-full me-2 ${isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
-                        جهازك مرتبط حالياً بـ: <span className="font-bold text-blue-600 dark:text-blue-400 mx-1">{clinicId}</span>
-                        (سيتم سحب تقارير الزملاء تلقائياً كل 30 ثانية)
+                        <div className={`h-2 w-2 rounded-full ${dir === 'rtl' ? 'me-2' : 'ms-2'} ${isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
+                        {t('deviceLinked')} <span className="font-bold text-blue-600 dark:text-blue-400 mx-1">{clinicId}</span>
+                        {t('autoPull')}
                     </div>
                 )}
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="أحمر (فوري)" value={redCount} color="red" />
-                <StatCard title="أصفر (مؤجل)" value={yellowCount} color="yellow" />
-                <StatCard title="أخضر (بسيط)" value={greenCount} color="green" />
-                <StatCard title="أسود (وفاة/ميئوس)" value={blackCount} color="black" />
+                <StatCard title={t('triageRed')} value={redCount} color="red" />
+                <StatCard title={t('triageYellow')} value={yellowCount} color="yellow" />
+                <StatCard title={t('triageGreen')} value={greenCount} color="green" />
+                <StatCard title={t('triageBlack')} value={blackCount} color="black" />
             </div>
 
             {/* Critical Cases */}
             {criticalReports.length > 0 && (
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 animate-pulse-slow">
                     <h2 className="text-xl font-bold text-red-800 dark:text-red-400 mb-4 flex items-center">
-                        <ExclamationTriangleIcon className="h-6 w-6 me-2" />
-                        حالات حرجة (Red Code) - تتطلب إخلاء فوري
+                        <ExclamationTriangleIcon className={`h-6 w-6 ${dir === 'rtl' ? 'me-2' : 'ms-2'}`} />
+                        {t('criticalCode')}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {criticalReports.map(report => (
-                            <div key={report.id} className="bg-white dark:bg-gray-800 border-s-4 border-red-500 rounded-lg shadow-sm p-4 flex flex-col justify-between hover:shadow-md transition">
+                            <div key={report.id} className={`bg-white dark:bg-gray-800 border-${dir === 'rtl' ? 's-4' : 'l-4'} border-red-500 rounded-lg shadow-sm p-4 flex flex-col justify-between hover:shadow-md transition`}>
                                 <div>
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-bold text-lg text-gray-900 dark:text-white">{report.patientName}</h3>
-                                        <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-semibold">Immediate</span>
+                                        <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-semibold">{t('immediateEvac')}</span>
                                     </div>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">العمر: {report.patientAge}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('patientAge')}: {report.patientAge}</p>
                                     <p className="text-sm text-gray-700 dark:text-gray-300 mb-3 line-clamp-2">
                                         {report.analysisResult.findings}
                                     </p>
@@ -112,12 +114,12 @@ const DashboardPage: React.FC = () => {
                                             rel="noreferrer"
                                             className="text-xs text-blue-500 hover:underline flex items-center mb-2"
                                         >
-                                            <MapPinIcon className="h-3 w-3 me-1" /> الموقع
+                                            <MapPinIcon className={`h-3 w-3 ${dir === 'rtl' ? 'me-1' : 'ms-1'}`} /> {t('location')}
                                         </a>
                                     )}
                                 </div>
                                 <Link to={`/chat/${report.id}`} className="text-red-600 dark:text-red-400 text-sm font-semibold hover:text-red-800 flex items-center justify-end mt-2">
-                                    متابعة الحالة <ArrowUpRightIcon className="h-4 w-4 ms-1" />
+                                    {t('followUpCase')} <ArrowUpRightIcon className={`h-4 w-4 ${dir === 'rtl' ? 'ms-1' : 'me-1'}`} />
                                 </Link>
                             </div>
                         ))}
@@ -129,20 +131,20 @@ const DashboardPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1 space-y-6">
                     <QuickActionButton
-                        title="تسجيل مريض جديد"
-                        description="إضافة بيانات وصور لحالة جديدة للتحليل."
+                        title={t('newPatient')}
+                        description={t('registerPatientDesc')}
                         icon={DocumentPlusIcon}
                         href="/new-patient"
                     />
                     <QuickActionButton
-                        title="إدارة المخزون الطبي"
-                        description="اقتراحات الذكاء الاصطناعي للمستلزمات."
+                        title={t('inventory')}
+                        description={t('inventoryDesc')}
                         icon={ClipboardDocumentListIcon}
                         href="/inventory"
                     />
                     <QuickActionButton
-                        title="المستشار السريري"
-                        description="استعلام عن الحالات والبيانات."
+                        title={t('chatbot')}
+                        description={t('chatbotDesc')}
                         icon={ChatBubbleLeftRightIcon}
                         href="/chatbot"
                     />
@@ -150,7 +152,7 @@ const DashboardPage: React.FC = () => {
 
                 {/* Recent Updates */}
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">آخر التحديثات الميدانية</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{t('latestUpdates')}</h2>
                     {reports.length > 0 ? (
                         <ul className="space-y-3">
                             {reports.slice(0, 5).map(report => (
@@ -170,21 +172,21 @@ const DashboardPage: React.FC = () => {
                                             </a>
                                         )}
                                         <Link to={`/chat/${report.id}`} className="text-sm text-blue-600 hover:underline">
-                                            عرض
+                                            {t('view')}
                                         </Link>
                                     </div>
                                 </li>
                             ))}
                         </ul>
                     ) : (
-                        <p className="text-gray-500 dark:text-gray-400 text-center py-4">لا توجد تقارير مسجلة حتى الآن.</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-center py-4">{t('noReports')}</p>
                     )}
                 </div>
             </div>
 
             {/* Protocols */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">بروتوكولات الإسعاف (Offline Reference)</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{t('protocols')}</h2>
                 <div className="space-y-4">
                     {FAQ_DATA.map((item: FaqItem, index) => (
                         <details key={index} className="group p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -204,6 +206,7 @@ const DashboardPage: React.FC = () => {
 };
 
 const StatCard: React.FC<{ title: string; value: number; color: 'blue' | 'red' | 'yellow' | 'green' | 'black' }> = ({ title, value, color }) => {
+    const { dir } = useI18n();
     const colors = {
         blue: 'border-blue-500 bg-blue-50 text-blue-800',
         red: 'border-red-500 bg-red-50 text-red-800',
@@ -212,27 +215,30 @@ const StatCard: React.FC<{ title: string; value: number; color: 'blue' | 'red' |
         black: 'border-gray-800 bg-gray-200 text-gray-900', // Black code styling
     };
     return (
-        <div className={`p-4 rounded-lg shadow-md border-s-4 ${colors[color] || colors.blue} dark:bg-opacity-80`}>
+        <div className={`p-4 rounded-lg shadow-md border-${dir === 'rtl' ? 's-4' : 'l-4'} ${colors[color] || colors.blue} dark:bg-opacity-80`}>
             <h3 className="text-sm font-medium opacity-80">{title}</h3>
             <p className="mt-1 text-3xl font-bold">{value}</p>
         </div>
     );
 };
 
-const QuickActionButton: React.FC<{ title: string, description: string, icon: React.ElementType, href: string }> = ({ title, description, icon: Icon, href }) => (
-    <Link to={href} className="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow group border border-transparent hover:border-blue-500">
-        <div className="flex justify-between items-start">
-            <div>
-                <div className="flex items-center space-s-3">
-                    <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
+const QuickActionButton: React.FC<{ title: string, description: string, icon: React.ElementType, href: string }> = ({ title, description, icon: Icon, href }) => {
+    const { dir } = useI18n();
+    return (
+        <Link to={href} className="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow group border border-transparent hover:border-blue-500">
+            <div className="flex justify-between items-start">
+                <div>
+                    <div className={`flex items-center space-${dir === 'rtl' ? 's-3' : 'x-3'}`}>
+                        <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{description}</p>
                 </div>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{description}</p>
+                <ArrowUpRightIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition" />
             </div>
-            <ArrowUpRightIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition" />
-        </div>
-    </Link>
-);
+        </Link>
+    );
+};
 
 const getTriageColorClass = (color: string) => {
     switch (color) {

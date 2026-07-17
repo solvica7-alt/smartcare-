@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
 
 /* Professional Medical Table Styles */
 .markdown-content table {
