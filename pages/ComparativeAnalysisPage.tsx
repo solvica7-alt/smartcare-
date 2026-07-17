@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { compareMedicalImages } from '../services/geminiService';
+import { useI18n } from '../context/I18nContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { PhotoIcon, ArrowsRightLeftIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { getData, setData, StorageKeys } from '../services/StorageService';
@@ -15,6 +16,7 @@ interface CompareRecord {
 }
 
 const ComparativeAnalysisPage: React.FC = () => {
+    const { t, dir } = useI18n();
     const [oldImage, setOldImage] = useState<File | null>(null);
     const [newImage, setNewImage] = useState<File | null>(null);
     const [oldPreview, setOldPreview] = useState<string | null>(null);
@@ -79,20 +81,20 @@ const ComparativeAnalysisPage: React.FC = () => {
             };
             setHistory(prev => [newRecord, ...prev]);
         } catch (error) {
-            setResult("حدث خطأ أثناء المقارنة.");
+            setResult(t('compError'));
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="max-w-5xl mx-auto" dir="rtl">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">تحليل التطور الزمني للإصابة</h1>
+        <div className="max-w-5xl mx-auto" dir={dir}>
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">{t('compTitle')}</h1>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 {/* Old Image */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border-t-4 border-gray-400">
-                    <h2 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">الحالة السابقة (قديم)</h2>
+                    <h2 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">{t('compOld')}</h2>
                     <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 h-64 flex flex-col justify-center items-center relative overflow-hidden">
                         {oldPreview ? (
                             <img src={oldPreview} alt="Old" className="absolute inset-0 w-full h-full object-contain" />
@@ -105,7 +107,7 @@ const ComparativeAnalysisPage: React.FC = () => {
 
                 {/* New Image */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border-t-4 border-blue-500">
-                    <h2 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">الحالة الحالية (جديد)</h2>
+                    <h2 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">{t('compNew')}</h2>
                     <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 h-64 flex flex-col justify-center items-center relative overflow-hidden">
                          {newPreview ? (
                             <img src={newPreview} alt="New" className="absolute inset-0 w-full h-full object-contain" />
@@ -124,15 +126,15 @@ const ComparativeAnalysisPage: React.FC = () => {
                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition flex items-center justify-center mx-auto disabled:bg-gray-400"
                 >
                     <ArrowsRightLeftIcon className="h-5 w-5 me-2" />
-                    مقارنة الحالتين بالذكاء الاصطناعي
+                    {t('compBtn')}
                 </button>
             </div>
 
-            {isLoading && <LoadingSpinner message="جاري تحليل الفروقات والتطور..." />}
+            {isLoading && <LoadingSpinner message={t('compLoading')} />}
 
             {result && !isLoading && (
                 <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg border dark:border-gray-700">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">نتيجة المقارنة</h3>
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{t('compResult')}</h3>
                     <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                         {result}
                     </div>
@@ -144,24 +146,24 @@ const ComparativeAnalysisPage: React.FC = () => {
                 <div className="mt-12">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center">
                         <ClockIcon className="h-6 w-6 me-2 text-blue-500" />
-                        سجل التحليلات السابقة
+                        {t('compHistory')}
                     </h2>
                     <div className="space-y-6">
                         {history.map(record => (
                             <div key={record.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
                                 <div className="flex justify-between items-center mb-4 border-b pb-2 dark:border-gray-700">
-                                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">مقارنة سابقة</span>
+                                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">{t('compPrevious')}</span>
                                     <span className="text-xs font-medium px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full">
                                         {record.timestamp}
                                     </span>
                                 </div>
                                 <div className="flex flex-col md:flex-row gap-6 mb-4">
                                     <div className="flex-1">
-                                        <p className="text-xs text-gray-500 mb-1 text-center">الحالة السابقة</p>
+                                        <p className="text-xs text-gray-500 mb-1 text-center">{t('compOld')}</p>
                                         <img src={`data:${record.oldImageMime};base64,${record.oldImageB64}`} alt="Old" className="w-full h-32 object-contain rounded bg-gray-50 dark:bg-gray-900 border" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-xs text-gray-500 mb-1 text-center">الحالة الجديدة</p>
+                                        <p className="text-xs text-gray-500 mb-1 text-center">{t('compNew')}</p>
                                         <img src={`data:${record.newImageMime};base64,${record.newImageB64}`} alt="New" className="w-full h-32 object-contain rounded bg-gray-50 dark:bg-gray-900 border" />
                                     </div>
                                 </div>

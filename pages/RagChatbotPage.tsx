@@ -1,11 +1,12 @@
 import * as React from 'react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getClinicalAssistantResponse, sendChatResponse } from '../services/geminiService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { PaperAirplaneIcon, MicrophoneIcon, PaperClipIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { useReports } from '../context/ReportContext';
+import { useI18n } from '../context/I18nContext';
 import { getData, setData, StorageKeys } from '../services/StorageService';
 import { OfflineQueueService } from '../services/OfflineQueueService';
 
@@ -23,6 +24,7 @@ const RagChatbotPage: React.FC = () => {
     const [attachments, setAttachments] = useState<{ data: string; mimeType: string }[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
     const { reports } = useReports();
+    const { t, dir } = useI18n();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
 
@@ -42,10 +44,10 @@ const RagChatbotPage: React.FC = () => {
     }, [messages, isLoaded]);
 
     const quickQuestions = [
-        "من هو المريض علي محمد؟",
-        "لخص لي حالة سارة عبدالله",
-        "هل هناك حالات ذات خطورة عالية؟",
-        "قم بعمل تسليم طبي (SBAR) لأحدث حالة تم تسجيلها",
+        t('q1'),
+        t('q2'),
+        t('q3'),
+        t('q4'),
     ];
 
     const handleSendMessage = async (e?: React.FormEvent, customInput?: string) => {
@@ -69,7 +71,7 @@ const RagChatbotPage: React.FC = () => {
 
         if (!navigator.onLine) {
             await OfflineQueueService.enqueueTask('CHAT', { text: currentInput, reports });
-            const botMessage: ChatMessage = { text: "أنت غير متصل بالإنترنت. تم حفظ رسالتك وسأقوم بالرد عليها فور عودة الاتصال.", sender: 'bot' };
+            const botMessage: ChatMessage = { text: t('chatbotOffline'), sender: 'bot' };
             setMessages(prev => [...prev, botMessage]);
             setIsLoading(false);
             return;
@@ -96,7 +98,7 @@ const RagChatbotPage: React.FC = () => {
             const botMessage: ChatMessage = { text: botResponse, sender: 'bot' };
             setMessages(prev => [...prev, botMessage]);
         } catch (error) {
-            const errorMessage: ChatMessage = { text: "عذراً، حدث خطأ أثناء تحليل البيانات. يرجى المحاولة مرة أخرى.", sender: 'bot' };
+            const errorMessage: ChatMessage = { text: t('chatbotError'), sender: 'bot' };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
@@ -110,7 +112,7 @@ const RagChatbotPage: React.FC = () => {
     const startRecording = () => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("متصفحك لا يدعم تحويل الصوت إلى كلام.");
+            alert(t('browserNoSpeech'));
             return;
         }
 
@@ -166,11 +168,11 @@ const RagChatbotPage: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-100px)] max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-md transition-colors duration-200" dir="rtl">
+        <div className="flex flex-col h-[calc(100vh-100px)] max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-md transition-colors duration-200" dir={dir}>
             <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">المستشار الطبي الذكي</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">استشِر النظام حول البيانات والتقارير والملفات.</p>
+                    <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('chatbotTitle')}</h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('chatbotSub')}</p>
                 </div>
             </div>
 
@@ -178,7 +180,7 @@ const RagChatbotPage: React.FC = () => {
                 {messages.length === 0 && (
                     <div className="text-center text-gray-500 dark:text-gray-400">
                         <MicrophoneIcon className="h-12 w-12 mx-auto mb-4 text-blue-500 opacity-20" />
-                        <p className="mb-4 text-lg">أنا هنا لمساعدتك طبياً. يمكنك التحدث إليّ أو رفع صور وتقارير طبية.</p>
+                        <p className="mb-4 text-lg">{t('chatbotEmptyTitle')}</p>
                     </div>
                 )}
                 {messages.map((msg, index) => (
@@ -194,7 +196,7 @@ const RagChatbotPage: React.FC = () => {
                                             <img key={i} src={`data:${att.mimeType};base64,${att.data}`} alt="attachment" className="h-20 w-20 object-cover rounded border border-white/20" />
                                         ) : (
                                             <div key={i} className="h-20 w-20 flex items-center justify-center bg-white/10 rounded border border-white/20 text-[10px] text-center p-1">
-                                                ملف {att.mimeType.split('/')[1].toUpperCase()}
+                                                {t('filePrefix')} {att.mimeType.split('/')[1].toUpperCase()}
                                             </div>
                                         )
                                     ))}
@@ -211,7 +213,7 @@ const RagChatbotPage: React.FC = () => {
                 {isLoading && (
                     <div className="flex justify-start">
                         <div className="max-w-lg p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border dark:border-gray-600">
-                            <LoadingSpinner message="يقوم المستشار الطبي بتحليل الحالة وصياغة التقرير..." />
+                            <LoadingSpinner message={t('chatbotProcessing')} />
                         </div>
                     </div>
                 )}
@@ -260,7 +262,7 @@ const RagChatbotPage: React.FC = () => {
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 transition-colors"
-                        title="إرفاق ملف أو صورة"
+                        title={t('attachFile')}
                     >
                         <PaperClipIcon className="h-6 w-6" />
                     </button>
@@ -278,7 +280,7 @@ const RagChatbotPage: React.FC = () => {
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder={isRecording ? "جاري الاستماع..." : "اكتب سؤالك أو ارفع ملفاتك هنا..."}
+                            placeholder={isRecording ? t('listening') : t('chatbotPlaceholder')}
                             className="w-full pl-12 pr-4 py-3 text-gray-700 dark:text-gray-100 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                             disabled={isLoading}
                         />

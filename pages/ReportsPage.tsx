@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useReports } from '../context/ReportContext';
+import { useI18n } from '../context/I18nContext';
 import { Report, AnalysisResult } from '../types';
 import { analyzeMedicalImage } from '../services/geminiService';
 import { MagnifyingGlassIcon, QrCodeIcon, PrinterIcon, ArrowPathIcon, CloudArrowUpIcon, ShareIcon, CpuChipIcon } from '@heroicons/react/24/outline';
@@ -9,6 +10,7 @@ import QRCode from 'react-qr-code';
 
 const ReportsPage: React.FC = () => {
     const { reports, updateReport } = useReports();
+    const { t, dir } = useI18n();
     const [searchTerm, setSearchTerm] = useState('');
     const [activeQr, setActiveQr] = useState<string | null>(null);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -90,11 +92,11 @@ const ReportsPage: React.FC = () => {
     };
 
     return (
-        <div className="max-w-7xl mx-auto" dir="rtl">
+        <div className="max-w-7xl mx-auto" dir={dir}>
             <div className="mb-6 space-y-4 md:space-y-0 md:flex md:items-center md:justify-between print:hidden">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">قائمة التقارير</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">عرض جميع الحالات المسجلة وتحليلاتها الأولية.</p>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">{t('reportsTitle')}</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">{t('reportsSubtitle')}</p>
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-2 items-end md:items-center">
@@ -113,7 +115,7 @@ const ReportsPage: React.FC = () => {
                             ) : (
                                 <CloudArrowUpIcon className="h-5 w-5 me-2" />
                             )}
-                            {isSyncing ? 'جاري المزامنة...' : `مزامنة ${pendingReports.length} حالة معلقة`}
+                            {isSyncing ? t('syncing') : t('syncPendingCases').replace('{count}', pendingReports.length.toString())}
                         </button>
                     )}
 
@@ -127,7 +129,7 @@ const ReportsPage: React.FC = () => {
                         <input
                             type="text"
                             className="block w-full pr-10 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            placeholder="بحث باسم المريض..."
+                            placeholder={t('searchPlaceholder')}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -141,12 +143,12 @@ const ReportsPage: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-700">
                                 <tr>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">اسم المريض</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">العمر</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">نتائج تحليل الذكاء الاصطناعي</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">الفرز (START)</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">QR Code</th>
-                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">عرض</span></th>
+                                    <th scope="col" className={`px-6 py-3 text-${dir === 'rtl' ? 'right' : 'left'} text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider`}>{t('patientNameTable')}</th>
+                                    <th scope="col" className={`px-6 py-3 text-${dir === 'rtl' ? 'right' : 'left'} text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider`}>{t('patientAgeTable')}</th>
+                                    <th scope="col" className={`px-6 py-3 text-${dir === 'rtl' ? 'right' : 'left'} text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider`}>{t('aiResultsTable')}</th>
+                                    <th scope="col" className={`px-6 py-3 text-${dir === 'rtl' ? 'right' : 'left'} text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider`}>{t('triageTable')}</th>
+                                    <th scope="col" className={`px-6 py-3 text-${dir === 'rtl' ? 'right' : 'left'} text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider`}>{t('qrTable')}</th>
+                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">{t('view')}</span></th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -162,15 +164,15 @@ const ReportsPage: React.FC = () => {
                                                         className="inline-flex items-center text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-full text-xs font-bold transition"
                                                     >
                                                         <CpuChipIcon className="h-4 w-4 me-1" />
-                                                        عرض تقرير الذكاء الاصطناعي
+                                                        {t('details')}
                                                     </Link>
                                                 ) : (
-                                                    <span className="text-gray-400 text-xs">لا توجد نتائج</span>
+                                                    <span className="text-gray-400 text-xs">{t('noData')}</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getTriageBadgeClass(report.analysisResult.triage_color)}`}>
-                                                    {report.analysisResult.triage_color === 'gray' ? 'بانتظار التحليل' : report.analysisResult.triage_color.toUpperCase()}
+                                                    {report.analysisResult.triage_color === 'gray' ? t('waitingAnalysis') : report.analysisResult.triage_color.toUpperCase()}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap relative flex gap-2">
@@ -198,15 +200,15 @@ ID: REF-${report.id.split('_')[1] || report.id}`}
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <Link to={`/chat/${report.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 block mb-1">عرض الملف</Link>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-${dir === 'rtl' ? 'right' : 'left'} text-sm font-medium`}>
+                                                <Link to={`/chat/${report.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 block mb-1">{t('viewReport')}</Link>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
                                         <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
-                                            لا توجد نتائج تطابق بحثك.
+                                            {t('noSearchMatch')}
                                         </td>
                                     </tr>
                                 )}
@@ -216,9 +218,9 @@ ID: REF-${report.id.split('_')[1] || report.id}`}
                 </div>
             ) : (
                 <div className="text-center bg-white dark:bg-gray-800 p-12 rounded-lg shadow-md">
-                    <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">لا توجد تقارير مسجلة</h2>
+                    <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">{t('noReports')}</h2>
                     <Link to="/new-patient" className="mt-6 inline-block bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition">
-                        تسجيل مريض جديد
+                        {t('newPatient')}
                     </Link>
                 </div>
             )}

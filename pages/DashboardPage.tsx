@@ -160,8 +160,8 @@ const DashboardPage: React.FC = () => {
                                     <div>
                                         <p className="font-semibold text-gray-800 dark:text-gray-100">{report.patientName}</p>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                                            Triage: <span className={`font-bold ${getTriageColorClass(report.analysisResult.triage_color)}`}>
-                                                {report.analysisResult.triage_color.toUpperCase()}
+                                            {t('triageClass')}: <span className={`font-bold ${getTriageColorClass(report.analysisResult.triage_color)}`}>
+                                                {t(`triage${report.analysisResult.triage_color.charAt(0).toUpperCase() + report.analysisResult.triage_color.slice(1)}`)}
                                             </span>
                                         </p>
                                     </div>

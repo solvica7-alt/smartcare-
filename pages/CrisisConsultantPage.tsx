@@ -3,6 +3,7 @@ import { useReports } from '../context/ReportContext';
 import { ExclamationTriangleIcon, FireIcon, UserGroupIcon, MapPinIcon, CameraIcon, PaperAirplaneIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { getData, setData, StorageKeys } from '../services/StorageService';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useI18n } from '../context/I18nContext';
 
 interface CrisisRecord {
     id: string;
@@ -16,6 +17,7 @@ interface CrisisRecord {
 
 const CrisisConsultantPage: React.FC = () => {
     const { reports } = useReports();
+    const { t, dir } = useI18n();
     const [description, setDescription] = useState('');
     const [locationInput, setLocationInput] = useState('');
     const [image, setImage] = useState<File | null>(null);
@@ -56,7 +58,7 @@ const CrisisConsultantPage: React.FC = () => {
             navigator.geolocation.getCurrentPosition((position) => {
                 setLocationInput(`${position.coords.latitude}, ${position.coords.longitude}`);
             }, () => {
-                alert("تعذر الحصول على الموقع.");
+                alert(t('cannotGetLocation'));
             });
         }
     };
@@ -82,10 +84,10 @@ const CrisisConsultantPage: React.FC = () => {
             ${activeReports.map(r => `- مريض: ${r.patientName}, تصنيف: ${r.analysisResult.triage_color}`).join('\n')}
 
             تفاصيل الحدث الميداني المباشر:
-            - الوصف: ${description || 'غير محدد'}
-            - الموقع: ${locationInput || 'غير محدد'}
+            - الوصف: ${description || t('undefinedStr')}
+            - الموقع: ${locationInput || t('undefinedStr')}
             
-            ${imageB64Info ? "مرفق صورة حية للحدث. قم بتحليل الصورة بدقة." : ""}
+            ${imageB64Info ? t('attachedLiveImage') : ""}
 
             بناءً على هذه البيانات الحية، قم بتقديم تقرير استراتيجي موجز وحاسم لمدير المستشفى يتضمن:
             1. تقييم عام للموقف الحالي وتوزيع الإصابات.
@@ -118,7 +120,7 @@ const CrisisConsultantPage: React.FC = () => {
             });
 
             const data = await response.json();
-            let finalStrategy = "تعذر توليد التقرير الاستراتيجي.";
+            let finalStrategy = t('cannotGenerateStrategy');
             if (data.choices && data.choices[0]) {
                 finalStrategy = data.choices[0].message.content;
             }
@@ -138,20 +140,20 @@ const CrisisConsultantPage: React.FC = () => {
 
         } catch (error) {
             console.error("Crisis Analysis Error:", error);
-            setAnalysis("حدث خطأ في الاتصال بالذكاء الاصطناعي المركزي.");
+            setAnalysis(t('aiConnectionError'));
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="max-w-5xl mx-auto p-4" dir="rtl">
+        <div className="max-w-5xl mx-auto p-4" dir={dir}>
             <div className="bg-red-600 rounded-xl shadow-lg p-8 text-white mb-6 bg-opacity-90">
-                <div className="flex items-center gap-4 mb-4">
+                <div className={`flex items-center gap-4 mb-4`}>
                     <FireIcon className="h-12 w-12 text-yellow-300" />
                     <div>
-                        <h1 className="text-3xl font-bold">غرفة عمليات الأزمات (Crisis Command Hub)</h1>
-                        <p className="text-red-100 opacity-90 mt-1">وحدة تحليل الذكاء الاصطناعي المركزي لحالات الطوارئ والحروب</p>
+                        <h1 className="text-3xl font-bold">{t('crisisCommandHub')}</h1>
+                        <p className="text-red-100 opacity-90 mt-1">{t('crisisHubDesc')}</p>
                     </div>
                 </div>
             </div>
@@ -161,21 +163,21 @@ const CrisisConsultantPage: React.FC = () => {
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border dark:border-gray-700 flex items-center gap-4">
                     <UserGroupIcon className="h-10 w-10 text-blue-500" />
                     <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الحالات المسجلة</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('totalRegisteredCases')}</p>
                         <p className="text-2xl font-bold text-gray-800 dark:text-white">{activeReports.length}</p>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border dark:border-gray-700 flex items-center gap-4">
                     <ExclamationTriangleIcon className="h-10 w-10 text-red-500" />
                     <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">حالات الفرز الأحمر (حرجة)</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('redTriageCases')}</p>
                         <p className="text-2xl font-bold text-red-600">{activeReports.filter(r => r.analysisResult.triage_color === 'red').length}</p>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border dark:border-gray-700 flex items-center gap-4">
                     <MapPinIcon className="h-10 w-10 text-yellow-500" />
                     <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">بانتظار الإخلاء الميداني</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('pendingEvacuation')}</p>
                         <p className="text-2xl font-bold text-yellow-600">{activeReports.filter(r => r.location).length}</p>
                     </div>
                 </div>
@@ -183,11 +185,11 @@ const CrisisConsultantPage: React.FC = () => {
 
             {/* Incident Reporting Form */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">تسجيل بلاغ كارثة جديد</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{t('reportNewCrisis')}</h2>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">وصف الحدث (مثال: انهيار مبنى سكني)</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidentDescription')}</label>
                             <textarea 
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
@@ -196,7 +198,7 @@ const CrisisConsultantPage: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الموقع أو الإحداثيات</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('locationOrCoords')}</label>
                             <div className="flex gap-2">
                                 <input 
                                     type="text" 
@@ -211,7 +213,7 @@ const CrisisConsultantPage: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">صورة ميدانية للحدث</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('fieldImage')}</label>
                         <div 
                             className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg h-32 flex justify-center items-center relative overflow-hidden bg-gray-50 dark:bg-gray-900 cursor-pointer"
                             onClick={() => fileInputRef.current?.click()}
@@ -222,7 +224,7 @@ const CrisisConsultantPage: React.FC = () => {
                                 <CameraIcon className="h-10 w-10 text-gray-400" />
                             )}
                             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageChange} />
-                            <span className="absolute z-10 font-bold bg-white/80 dark:bg-black/50 px-2 py-1 rounded">اضغط لإرفاق صورة</span>
+                            <span className="absolute z-10 font-bold bg-white/80 dark:bg-black/50 px-2 py-1 rounded">{t('clickToAttach')}</span>
                         </div>
                     </div>
                 </div>
@@ -232,7 +234,7 @@ const CrisisConsultantPage: React.FC = () => {
                         disabled={isLoading}
                         className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg flex items-center transition disabled:opacity-50"
                     >
-                        {isLoading ? <LoadingSpinner message="جاري صياغة الاستراتيجية..." /> : <><PaperAirplaneIcon className="h-5 w-5 me-2"/> إرسال البلاغ وتوليد خطة الاستجابة</>}
+                        {isLoading ? <LoadingSpinner message={t('formulatingStrategy')} /> : <><PaperAirplaneIcon className={`h-5 w-5 ${dir === 'rtl' ? 'me-2' : 'ms-2'}`}/> {t('sendReportGeneratePlan')}</>}
                     </button>
                 </div>
             </div>
@@ -240,7 +242,7 @@ const CrisisConsultantPage: React.FC = () => {
             {/* Current Active Analysis */}
             {analysis && (
                 <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-8">
-                    <h3 className="text-xl font-bold text-red-800 dark:text-red-400 mb-4">الاستراتيجية الفورية للحدث الحالي</h3>
+                    <h3 className="text-xl font-bold text-red-800 dark:text-red-400 mb-4">{t('immediateStrategy')}</h3>
                     <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed text-gray-800 dark:text-gray-200">
                         {analysis}
                     </div>
@@ -251,16 +253,16 @@ const CrisisConsultantPage: React.FC = () => {
             {history.length > 0 && (
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center">
-                        <ClockIcon className="h-6 w-6 me-2 text-red-500" />
-                        سجل بلاغات وتقارير الأزمات السابقة
+                        <ClockIcon className={`h-6 w-6 ${dir === 'rtl' ? 'me-2' : 'ms-2'} text-red-500`} />
+                        {t('crisisHistory')}
                     </h2>
                     <div className="space-y-6">
                         {history.map(record => (
                             <div key={record.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <p className="font-bold text-gray-800 dark:text-gray-100">{record.description || 'بدون وصف'}</p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400"><MapPinIcon className="h-4 w-4 inline me-1"/> {record.location || 'غير محدد'}</p>
+                                        <p className="font-bold text-gray-800 dark:text-gray-100">{record.description || t('noDescription')}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400"><MapPinIcon className={`h-4 w-4 inline ${dir === 'rtl' ? 'me-1' : 'ms-1'}`}/> {record.location || t('undefinedStr')}</p>
                                     </div>
                                     <span className="text-xs font-medium px-2 py-1 bg-red-100 text-red-800 rounded-full">{record.timestamp}</span>
                                 </div>
@@ -270,7 +272,7 @@ const CrisisConsultantPage: React.FC = () => {
                                 )}
 
                                 <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded border dark:border-gray-700">
-                                    <h4 className="font-bold text-red-600 mb-2">استراتيجية الإنقاذ الصادرة:</h4>
+                                    <h4 className="font-bold text-red-600 mb-2">{t('issuedRescueStrategy')}</h4>
                                     <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{record.strategy}</p>
                                 </div>
                             </div>
