@@ -143,8 +143,8 @@ export const analyzeMedicalImage = async (
     const schema = getAnalysisSchema(language);
 
     const promptText = `
-        Please act as a medical assistant AI specializing in Disaster Medicine and the START Triage Protocol.
-        Analyze the attached medical image(s) and patient information.
+        Please act as a senior medical assistant AI specializing in Disaster Medicine and the START Triage Protocol.
+        Analyze the attached medical image(s) and patient information very carefully and provide a highly detailed, accurate medical explanation.
         
         Patient Information:
         - Age: ${patientInfo.age}
@@ -152,7 +152,7 @@ export const analyzeMedicalImage = async (
         - Detailed Symptoms: ${patientInfo.detailedSymptoms || 'Not provided'}
         - Additional Notes: ${patientInfo.notes || 'Not provided'}
 
-        Your task is to provide a single, consolidated triage analysis.
+        Your task is to provide a comprehensive, highly detailed medical assessment.
         
         Apply the START Triage Protocol Logic:
         1. **Black (Deceased/Expectant)**: No respiration or catastrophic injury incompatible with life.
@@ -160,10 +160,13 @@ export const analyzeMedicalImage = async (
         3. **Yellow (Delayed)**: Serious but stable. Cannot walk but respirations, pulse, and mental status are normal.
         4. **Green (Minor)**: "Walking wounded". Minor injuries.
 
-        Your response MUST be entirely in ${langName} and formatted as a JSON object matching this schema:
+        Your response MUST be entirely in ${langName} and formatted exactly as a valid JSON object matching this schema:
         ${JSON.stringify(schema, null, 2)}
         
-        IMPORTANT: Return ONLY the JSON object. Do not wrap it in markdown block.
+        IMPORTANT RULES:
+        1. Ensure ALL fields are filled out in ${langName} with detailed, highly descriptive text.
+        2. DO NOT leave 'findings' or 'red_flags' empty. Be thorough and write a professional medical summary.
+        3. Return ONLY the raw JSON object. Do not wrap it in a markdown block (e.g. no \`\`\`json). Just the raw JSON.
     `;
 
     parts.push({ text: promptText });
@@ -176,18 +179,29 @@ export const analyzeMedicalImage = async (
         let cleanText = textResponse.replace(/^[\s\S]*?```json/gm, '').replace(/```[\s\S]*?$/gm, '');
         cleanText = cleanText.trim();
 
+        let result: any = {};
         try {
-            return JSON.parse(cleanText) as AnalysisResult;
+            result = JSON.parse(cleanText);
         } catch (jsonError) {
             console.error("JSON Parse Error. Raw text:", textResponse);
             const firstBrace = textResponse.indexOf('{');
             const lastBrace = textResponse.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace !== -1) {
                 const subString = textResponse.substring(firstBrace, lastBrace + 1);
-                return JSON.parse(subString) as AnalysisResult;
+                result = JSON.parse(subString);
+            } else {
+                throw new Error("Invalid JSON structure in AI response.");
             }
-            throw new Error("Invalid JSON structure in AI response.");
         }
+
+        // Ensure defaults so UI doesn't crash if Llama 3.2 returns incomplete JSON
+        return {
+            risk_level: result.risk_level || 'غير محدد',
+            triage_color: result.triage_color || 'gray',
+            findings: result.findings || 'لم يتمكن الذكاء الاصطناعي من توليد ملاحظات دقيقة. يرجى مراجعة الحالة يدوياً.',
+            red_flags: Array.isArray(result.red_flags) ? result.red_flags : [],
+            medical_recommendations: Array.isArray(result.medical_recommendations) ? result.medical_recommendations : []
+        } as AnalysisResult;
     } catch (error) {
         console.error("Analysis and Parsing Failed:", error);
         throw new Error("Medical Analysis Failed. Please check your internet connection and try again.");

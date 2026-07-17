@@ -171,8 +171,8 @@ const ReportsPage: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getTriageBadgeClass(report.analysisResult.triage_color)}`}>
-                                                    {report.analysisResult.triage_color === 'gray' ? t('waitingAnalysis') : report.analysisResult.triage_color.toUpperCase()}
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getTriageBadgeClass(report.analysisResult.triage_color || 'gray')}`}>
+                                                    {report.analysisResult.triage_color === 'gray' || !report.analysisResult.triage_color ? t('waitingAnalysis') : report.analysisResult.triage_color.toUpperCase()}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap relative flex gap-2">
@@ -189,7 +189,7 @@ const ReportsPage: React.FC = () => {
 ------------------------------
 Name: ${report.patientName.split('').map(c => ({ 'ا': 'A', 'أ': 'A', 'إ': 'E', 'آ': 'A', 'ى': 'A', 'ب': 'B', 'ت': 'T', 'ث': 'TH', 'ج': 'J', 'ح': 'H', 'خ': 'KH', 'د': 'D', 'ذ': 'TH', 'ر': 'R', 'ز': 'Z', 'س': 'S', 'ش': 'SH', 'ص': 'S', 'ض': 'D', 'ط': 'T', 'ظ': 'Z', 'ع': 'A', 'غ': 'GH', 'ف': 'F', 'ق': 'Q', 'ك': 'K', 'ل': 'L', 'م': 'M', 'ن': 'N', 'ه': 'H', 'و': 'W', 'ي': 'Y', 'ة': 'H', ' ': ' ' })[c] || c).join('').toUpperCase()}
 Age: ${report.patientAge}
-Triage: ${report.analysisResult.triage_color.toUpperCase()}
+Triage: ${(report.analysisResult.triage_color || 'gray').toUpperCase()}
 ID: REF-${report.id.split('_')[1] || report.id}`}
                                                             size={150}
                                                             level="L"
