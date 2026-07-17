@@ -124,6 +124,13 @@ export const translations = {
         invDesc: "يقوم الذكاء الاصطناعي بتحليل إصابات {count} مريض لتقدير الاحتياجات.",
         invNotEnough: "لا توجد تقارير كافية لإنشاء توصيات.",
         invUpdate: "تحديث التوصيات",
+        invSuggestions: "توصيات المخزون",
+        invLoading: "جاري تحليل الاحتياجات...",
+        invError: "حدث خطأ أثناء جلب التوصيات.",
+        invOffline: "أنت غير متصل بالإنترنت. سيتم جلب التوصيات لاحقاً.",
+        invUpdateBtn: "جلب أحدث التوصيات",
+        patientNameTable: "الاسم",
+        patientAgeTable: "السن",
         
         // Compare
         compTitle: "تحليل التطور الزمني للإصابة",
@@ -447,6 +454,13 @@ export const translations = {
         invDesc: "AI is analyzing the injuries of {count} patients to estimate needs.",
         invNotEnough: "Not enough reports to generate recommendations.",
         invUpdate: "Update Recommendations",
+        invSuggestions: "Inventory Suggestions",
+        invLoading: "Analyzing needs...",
+        invError: "Error fetching recommendations.",
+        invOffline: "You are offline. Recommendations will be fetched later.",
+        invUpdateBtn: "Get Latest Recommendations",
+        patientNameTable: "Name",
+        patientAgeTable: "Age",
         
         // Compare
         compTitle: "Injury Progression Analysis",
@@ -770,6 +784,13 @@ export const translations = {
         invDesc: "L'AI sta analizzando le lesioni di {count} pazienti per stimare le necessità.",
         invNotEnough: "Non ci sono rapporti sufficienti per generare raccomandazioni.",
         invUpdate: "Aggiorna Raccomandazioni",
+        invSuggestions: "Suggerimenti Inventario",
+        invLoading: "Analisi delle necessità...",
+        invError: "Errore durante il recupero delle raccomandazioni.",
+        invOffline: "Sei offline. Le raccomandazioni verranno recuperate più tardi.",
+        invUpdateBtn: "Ottieni Ultime Raccomandazioni",
+        patientNameTable: "Nome",
+        patientAgeTable: "Età",
         
         // Compare
         compTitle: "Analisi della Progressione delle Lesioni",

@@ -152,21 +152,34 @@ export const analyzeMedicalImage = async (
         - Detailed Symptoms: ${patientInfo.detailedSymptoms || 'Not provided'}
         - Additional Notes: ${patientInfo.notes || 'Not provided'}
 
-        Your task is to provide a comprehensive, highly detailed medical assessment.
-        
         Apply the START Triage Protocol Logic:
-        1. **Black (Deceased/Expectant)**: No respiration or catastrophic injury incompatible with life.
-        2. **Red (Immediate)**: Respiratory rate > 30, OR No radial pulse/capillary refill > 2s, OR Unable to follow commands (altered mental status).
-        3. **Yellow (Delayed)**: Serious but stable. Cannot walk but respirations, pulse, and mental status are normal.
-        4. **Green (Minor)**: "Walking wounded". Minor injuries.
+        1. **Black**: Deceased/Expectant.
+        2. **Red**: Immediate (critical).
+        3. **Yellow**: Delayed (serious but stable).
+        4. **Green**: Minor (walking wounded).
 
-        Your response MUST be entirely in ${langName} and formatted exactly as a valid JSON object matching this schema:
-        ${JSON.stringify(schema, null, 2)}
-        
-        IMPORTANT RULES:
-        1. Ensure ALL fields are filled out in ${langName} with detailed, highly descriptive text.
-        2. DO NOT leave 'findings' or 'red_flags' empty. Be thorough and write a professional medical summary.
-        3. Return ONLY the raw JSON object. Do not wrap it in a markdown block (e.g. no \`\`\`json). Just the raw JSON.
+        Your response MUST be entirely in ${langName}. 
+        Do NOT use JSON. You MUST format your response exactly using these tags:
+
+        [RISK]
+        Write one of: Low, Medium, High (in ${langName})
+        [/RISK]
+
+        [TRIAGE]
+        Write exactly one of: red, yellow, green, black
+        [/TRIAGE]
+
+        [FINDINGS]
+        Write a very detailed, professional, and accurate medical description of the visual findings and symptoms (in ${langName}). Be extremely thorough.
+        [/FINDINGS]
+
+        [RED_FLAGS]
+        Write any critical warning signs as a bulleted list (in ${langName}). If none, write "لا يوجد".
+        [/RED_FLAGS]
+
+        [RECOMMENDATIONS]
+        Write immediate first-aid medical recommendations as a bulleted list (in ${langName}). Be detailed.
+        [/RECOMMENDATIONS]
     `;
 
     parts.push({ text: promptText });
@@ -176,31 +189,34 @@ export const analyzeMedicalImage = async (
             contents: [{ parts: parts }]
         });
 
-        let cleanText = textResponse.replace(/^[\s\S]*?```json/gm, '').replace(/```[\s\S]*?$/gm, '');
-        cleanText = cleanText.trim();
+        const extractTag = (text: string, tag: string) => {
+            const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
+            const match = text.match(regex);
+            return match ? match[1].trim() : '';
+        };
 
-        let result: any = {};
-        try {
-            result = JSON.parse(cleanText);
-        } catch (jsonError) {
-            console.error("JSON Parse Error. Raw text:", textResponse);
-            const firstBrace = textResponse.indexOf('{');
-            const lastBrace = textResponse.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                const subString = textResponse.substring(firstBrace, lastBrace + 1);
-                result = JSON.parse(subString);
-            } else {
-                throw new Error("Invalid JSON structure in AI response.");
-            }
-        }
+        const risk_level = extractTag(textResponse, 'RISK') || 'غير محدد';
+        const triage_color_raw = extractTag(textResponse, 'TRIAGE').toLowerCase();
+        let triage_color = 'gray';
+        if (triage_color_raw.includes('red')) triage_color = 'red';
+        else if (triage_color_raw.includes('yellow')) triage_color = 'yellow';
+        else if (triage_color_raw.includes('green')) triage_color = 'green';
+        else if (triage_color_raw.includes('black')) triage_color = 'black';
 
-        // Ensure defaults so UI doesn't crash if Llama 3.2 returns incomplete JSON
+        const findings = extractTag(textResponse, 'FINDINGS') || 'لم يتمكن الذكاء الاصطناعي من توليد ملاحظات دقيقة. يرجى مراجعة الحالة يدوياً.';
+        
+        const red_flags_text = extractTag(textResponse, 'RED_FLAGS');
+        const red_flags = red_flags_text.split('\\n').map(s => s.replace(/^- /, '').trim()).filter(s => s && s.length > 2 && s !== 'لا يوجد');
+
+        const recommendations_text = extractTag(textResponse, 'RECOMMENDATIONS');
+        const medical_recommendations = recommendations_text.split('\\n').map(s => s.replace(/^- /, '').trim()).filter(s => s && s.length > 2);
+
         return {
-            risk_level: result.risk_level || 'غير محدد',
-            triage_color: result.triage_color || 'gray',
-            findings: result.findings || 'لم يتمكن الذكاء الاصطناعي من توليد ملاحظات دقيقة. يرجى مراجعة الحالة يدوياً.',
-            red_flags: Array.isArray(result.red_flags) ? result.red_flags : [],
-            medical_recommendations: Array.isArray(result.medical_recommendations) ? result.medical_recommendations : []
+            risk_level,
+            triage_color,
+            findings,
+            red_flags,
+            medical_recommendations
         } as AnalysisResult;
     } catch (error) {
         console.error("Analysis and Parsing Failed:", error);
