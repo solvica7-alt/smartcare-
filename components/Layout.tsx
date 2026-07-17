@@ -27,7 +27,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }: { childre
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { user, logout } = useAuth();
     const { isDarkMode, toggleTheme } = useTheme();
-    const { language, setLanguage } = useI18n();
+    const { t, language, setLanguage, dir } = useI18n();
     const navigate = useNavigate();
 
     const handleLogout = () => {
