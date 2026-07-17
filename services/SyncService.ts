@@ -11,21 +11,12 @@ import { Report } from '../types';
  * All devices sharing the SAME ID will automatically see each other's reports.
  */
 
-// 🇵🇸 Proxy Helper: Bypasses CORS when running on localhost or mobile web
+// 🇵🇸 Proxy Helper: Uses Vite proxy locally or Netlify/Vercel proxy in production
 const getProxiedUrl = (url: string) => {
-    // 🇵🇸 FIX: Use Netlify Rewrite Proxy in production to bypass CORS
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
     // Add timestamp to prevent caching
     const timestamp = '?t=' + Date.now();
 
-    if (isLocal) {
-        const noCacheUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
-        return 'https://corsproxy.io/?' + encodeURIComponent(noCacheUrl);
-    }
-
-    // In production (Netlify), use the local proxy rule: /api/sync/ID
-    // Robust extraction: find UUID after /jsonBlob/
+    // Use local proxy rule: /api/sync/ID
     const match = url.match(/\/jsonBlob\/([a-z0-9-]+)/);
     const blobId = match ? match[1] : null;
 
@@ -33,14 +24,13 @@ const getProxiedUrl = (url: string) => {
         return `/api/sync/${blobId}${timestamp}`;
     }
 
-    // Fallback if extraction fails
+    // Fallback
     return url + timestamp;
 };
 
 // 🇵🇸 GLOBAL UNIVERSAL STORAGE ID
-// We now store ALL clinics in ONE big JSON object: { "clinicId": [reports...], "anotherId": [...] }
-// This avoids creating new blobs and the associated header issues.
-const UNIVERSAL_STORAGE_ID = '019c3a0d-c841-7c2b-9589-47f4fd455ac5';
+// We store ALL clinics in ONE big JSON object: { "clinicId": [reports...], "anotherId": [...] }
+const UNIVERSAL_STORAGE_ID = '019f710b-6834-755c-bcac-70bfb1b698ad';
 const STORAGE_URL = `https://jsonblob.com/api/jsonBlob/${UNIVERSAL_STORAGE_ID}`;
 
 export const SyncService = {

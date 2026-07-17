@@ -20,31 +20,39 @@ const ReportContext = createContext<ReportContextType | undefined>(undefined);
 
 
 export const ReportProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [reports, setReports] = useState<Report[]>(() => {
-        try {
-            const savedReports = localStorage.getItem('reports');
-            return savedReports ? JSON.parse(savedReports) : [];
-        } catch (error) {
-            console.error("Failed to parse reports from localStorage", error);
-            return [];
-        }
-    });
-
-    const [clinicId, setClinicId] = useState(() => localStorage.getItem('clinicId') || '');
+    const [reports, setReports] = useState<Report[]>([]);
+    const [clinicId, setClinicId] = useState<string>('');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(false);
 
-    // Save to localStorage
+    // Initial async load
     useEffect(() => {
-        try {
-            localStorage.setItem('reports', JSON.stringify(reports));
-        } catch (error) {
-            console.error("Failed to save reports to localStorage", error);
-        }
-    }, [reports]);
+        import('../services/StorageService').then(({ getData, StorageKeys }) => {
+            Promise.all([
+                getData<Report[]>(StorageKeys.REPORTS, []),
+                getData<string>(StorageKeys.CLINIC_ID, '')
+            ]).then(([savedReports, savedClinicId]) => {
+                setReports(savedReports);
+                setClinicId(savedClinicId);
+                setIsLoaded(true);
+            });
+        });
+    }, []);
+
+    // Save to localForage
+    useEffect(() => {
+        if (!isLoaded) return;
+        import('../services/StorageService').then(({ setData, StorageKeys }) => {
+            setData(StorageKeys.REPORTS, reports);
+        });
+    }, [reports, isLoaded]);
 
     useEffect(() => {
-        localStorage.setItem('clinicId', clinicId);
-    }, [clinicId]);
+        if (!isLoaded) return;
+        import('../services/StorageService').then(({ setData, StorageKeys }) => {
+            setData(StorageKeys.CLINIC_ID, clinicId);
+        });
+    }, [clinicId, isLoaded]);
 
     // Background Sync Logic
     const triggerSync = async () => {

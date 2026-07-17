@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Professional Medical Table Styles */
 .markdown-content table {
     width: 100%;

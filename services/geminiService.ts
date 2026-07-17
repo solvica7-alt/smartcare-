@@ -1,63 +1,89 @@
 import { AnalysisResult, Patient, Report } from '../types';
 
-const API_KEYS = [
-    "AIzaSyDwNKcHL3nfXjsk-xX1S84Dx6FAxeUSB8k", // Original Working Key (Primary)
-    "AIzaSyC-L81jNnpCHAIjP-1gNbbLWvgdKkcSKC0",
-    "AIzaSyAjlREYAwe8Zhw1xR9m-b9OJGXrC-zOZjs",
-    "AIzaSyDdjtW4EKJBcLvc-Rb6RbSvYhn3u9druKc",
-    "AIzaSyCeK_P9idBHYNYIz4YT59yiwDG44UFvr4E",
-    "AIzaSyBBeUqv2sGnk_1py2GE9_5sixQ-I17q21U"
-];
+// NVIDIA NIM API - Free Vision Models
+const BASE_URL = "/api/nvidia/v1/chat/completions";
 
-const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const MODEL = "gemini-flash-latest";
-
-// Internal helper to call Google Gemini API via REST with Key Rotation
+// Internal helper to call NVIDIA API via REST
 async function callGeminiAPI(payload: any) {
-    let lastError: any = null;
+    // 1. Hardcoded NVIDIA Token
+    const orToken = "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";
 
-    for (const rawKey of API_KEYS) {
-        const apiKey = rawKey.trim();
-        try {
-            const response = await fetch(`${BASE_URL}/${MODEL}:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Gemini API Key Error (${response.status}):`, errorText);
-
-                if (response.status === 429 || response.status === 403 || response.status >= 500) {
-                    console.warn(`Attempting key rotation due to status ${response.status}...`);
-                    lastError = new Error(`API ${response.status}: ${errorText}`);
-                    continue;
-                }
-                throw new Error(`Critical API Error ${response.status}: ${errorText}`);
-            }
-
-            const data = await response.json();
-            console.log("Gemini API Success Response:", data);
-
-            if (!data.candidates || data.candidates.length === 0) {
-                console.error("Gemini Blocked Content:", data.promptFeedback);
-                throw new Error("No response generated (possibly blocked).");
-            }
-
-            return data.candidates[0].content.parts[0].text;
-
-        } catch (error) {
-            console.warn(`Attempt failed with key ...${apiKey.slice(-4)}:`, error);
-            lastError = error;
-            // Continue to next key
+    // Convert Gemini payload to OpenAI format
+    const messages = [];
+    
+    if (payload.systemInstruction) {
+        let sysText = "";
+        if (payload.systemInstruction.parts) {
+            sysText = payload.systemInstruction.parts.map((p:any) => p.text).join('\n');
+        }
+        if (sysText) {
+            messages.push({ role: 'system', content: sysText });
         }
     }
 
-    // If we exit the loop, all keys failed
-    throw lastError || new Error("All Gemini API keys failed. Please check internet connection or quota.");
+    if (payload.contents) {
+        for (const content of payload.contents) {
+            const role = content.role === 'model' ? 'assistant' : 'user';
+            const parts = content.parts || [];
+            
+            const oaiContent = [];
+            for (const part of parts) {
+                if (part.text) {
+                    oaiContent.push({ type: "text", text: part.text });
+                } else if (part.inlineData) {
+                    // NV API expects image_url.url
+                    oaiContent.push({
+                        type: "image_url",
+                        image_url: {
+                            url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+                        }
+                    });
+                }
+            }
+            
+            if (oaiContent.length === 1 && oaiContent[0].type === "text") {
+                messages.push({ role, content: oaiContent[0].text });
+            } else {
+                messages.push({ role, content: oaiContent });
+            }
+        }
+    }
+    
+    const openaiPayload = {
+        model: "meta/llama-3.2-11b-vision-instruct", 
+        messages: messages,
+        max_tokens: 1024,
+        temperature: 0.2
+    };
+
+    try {
+        const response = await fetch(BASE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${orToken}`,
+            },
+            body: JSON.stringify(openaiPayload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`NVIDIA API Error (${response.status}):`, errorText);
+            throw new Error(`API Error ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.choices || data.choices.length === 0) {
+            throw new Error("No response generated by NVIDIA.");
+        }
+
+        return data.choices[0].message.content;
+
+    } catch (error) {
+        console.error("NVIDIA API call failed:", error);
+        throw error;
+    }
 }
 
 const analysisSchema = {

@@ -16,6 +16,7 @@ const OfflineSharePage: React.FC = () => {
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [scanError, setScanError] = useState<string | null>(null);
     const [scannedReport, setScannedReport] = useState<any | null>(null);
+    const [manualData, setManualData] = useState<string>('');
 
     // Ref to track scanning state
     const isScanningRef = useRef<boolean>(false);
@@ -45,17 +46,19 @@ const OfflineSharePage: React.FC = () => {
         const report = reports.find(r => r.id === reportId);
         if (!report) return '';
 
-        const nameEnglish = transliterateArabicToEnglish(report.patientName);
-        const shortId = report.id.split('_')[1] || report.id;
-        const displayId = `REF-${shortId}`;
+        // We use a compressed JSON format to fit inside QR/SMS
+        // Omitting images as they are too large for offline P2P text transfer
+        const payload = {
+            n: report.patientName,
+            a: report.patientAge,
+            s: report.symptoms.join(','),
+            t: report.analysisResult.triage_color,
+            f: report.analysisResult.findings,
+            l: report.location ? `${report.location.lat},${report.location.lng}` : '',
+            i: report.id.split('_')[1] || report.id
+        };
 
-        // Return the standard Text Format
-        return `SMARTCARE REPORT
-------------------------------
-Name: ${nameEnglish}
-Age: ${report.patientAge}
-Triage: ${report.analysisResult.triage_color.toUpperCase()}
-ID: ${displayId}`;
+        return `QR2|${btoa(unescape(encodeURIComponent(JSON.stringify(payload))))}`;
     };
 
     useEffect(() => {
@@ -162,20 +165,28 @@ ID: ${displayId}`;
             }
 
             if (jsonData) {
+                // Parse location if exists
+                let loc = undefined;
+                if (jsonData.l && typeof jsonData.l === 'string' && jsonData.l.includes(',')) {
+                    const [lat, lng] = jsonData.l.split(',');
+                    loc = { lat: parseFloat(lat), lng: parseFloat(lng) };
+                }
+
                 const reconstructedData: any = {
                     id: (jsonData.i || "Unknown") + "_" + Date.now(),
                     patientName: jsonData.n || "Unknown",
                     patientAge: jsonData.a || "0",
-                    symptoms: [],
+                    symptoms: jsonData.s ? jsonData.s.split(',') : [],
                     analysisResult: {
                         triage_color: jsonData.t || 'gray',
-                        findings: "تم الاستلام عبر QR",
+                        findings: jsonData.f || "تم الاستلام عبر المشاركة بدون إنترنت",
                         risk_level: 'Unknown',
                         red_flags: []
                     },
                     status: 'processed',
                     timestamp: Date.now(),
-                    imagePreviews: []
+                    imagePreviews: [],
+                    location: loc
                 };
 
                 importReport(reconstructedData);
@@ -190,6 +201,12 @@ ID: ${displayId}`;
             setScanError("تعذر قراءة بيانات الحالة.");
             isScanningRef.current = false;
         }
+    };
+
+    const handleManualSubmit = () => {
+        if (!manualData.trim()) return;
+        onScanSuccess(manualData.trim());
+        setManualData('');
     };
 
     const onScanFailure = (error: any) => { };
@@ -249,8 +266,36 @@ ID: ${displayId}`;
                                             bgColor="#FFFFFF"
                                         />
                                     </div>
+                                    <p className="mt-4 text-sm text-gray-500 font-semibold">وجه كاميرا الجهاز الآخر للمسح</p>
 
-                                    <p className="mt-4 text-sm text-gray-500">وجه كاميرا الجهاز الآخر للمسح</p>
+                                    <div className="w-full mt-6 pt-4 border-t border-gray-200">
+                                        <p className="text-xs text-gray-400 mb-2">أو الإرسال للأجهزة البعيدة بدون إنترنت</p>
+                                        <button
+                                            onClick={() => {
+                                                if (navigator.share) {
+                                                    navigator.share({
+                                                        title: 'SmartCare Report',
+                                                        text: qrData
+                                                    }).catch(console.error);
+                                                } else {
+                                                    // Fallback for desktop/unsupported: open SMS directly or copy
+                                                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                                                    if (isMobile) {
+                                                        window.location.href = `sms:?body=${encodeURIComponent(qrData)}`;
+                                                    } else {
+                                                        navigator.clipboard.writeText(qrData);
+                                                        alert("تم نسخ التقرير للحافظة! يمكنك إرساله عبر أي وسيلة.");
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full py-2 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md transition font-medium flex items-center justify-center shadow-sm"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                            </svg>
+                                            مشاركة عبر SMS / تطبيقات أخرى
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="text-center py-10 text-gray-400">
@@ -264,7 +309,23 @@ ID: ${displayId}`;
                             {!scannedReport ? (
                                 <div className="w-full max-w-md">
                                     <div id="reader" className="w-full min-h-[300px] bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300"></div>
-                                    <p className="text-center mt-4 text-gray-500">وجه الكاميرا نحو QR Code جهاز المسعف الآخر.</p>
+                                    <p className="text-center mt-4 text-gray-500">وجه الكاميرا نحو QR Code جهاز المسعف الآخر (للأجهزة القريبة).</p>
+                                    
+                                    <div className="mt-8 border-t border-gray-200 pt-6 w-full">
+                                        <h3 className="text-md font-bold text-gray-700 dark:text-gray-300 mb-2">أو لصق بيانات الحالة (للأجهزة البعيدة عبر SMS)</h3>
+                                        <textarea
+                                            value={manualData}
+                                            onChange={(e) => setManualData(e.target.value)}
+                                            placeholder="الصق نص التقرير المستلم عبر SMS هنا..."
+                                            className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        ></textarea>
+                                        <button
+                                            onClick={handleManualSubmit}
+                                            className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition shadow"
+                                        >
+                                            تحميل بيانات الحالة
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="w-full max-w-lg bg-green-50 border border-green-200 rounded-xl p-6 shadow-sm text-center animate-fade-in-up">

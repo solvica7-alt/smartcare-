@@ -1,7 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { translateText } from '../services/geminiService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { LanguageIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
+import { LanguageIcon, MicrophoneIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { getData, setData, StorageKeys } from '../services/StorageService';
+
+import { OfflineQueueService } from '../services/OfflineQueueService';
+
+interface TranslationRecord {
+    id: string;
+    source: string;
+    result: string;
+    targetLang: string;
+    timestamp: string;
+}
 
 const TranslationPage: React.FC = () => {
     const [inputText, setInputText] = useState('');
@@ -9,13 +20,47 @@ const TranslationPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [targetLang, setTargetLang] = useState('Arabic');
     const [isListening, setIsListening] = useState(false);
+    
+    const [history, setHistory] = useState<TranslationRecord[]>([]);
+    const [isLoaded, setIsLoaded] = useState(false);
+
+    useEffect(() => {
+        getData<TranslationRecord[]>(StorageKeys.TRANSLATION_HISTORY, []).then(saved => {
+            setHistory(saved);
+            setIsLoaded(true);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isLoaded) {
+            setData(StorageKeys.TRANSLATION_HISTORY, history);
+        }
+    }, [history, isLoaded]);
 
     const handleTranslate = async () => {
         if (!inputText.trim()) return;
         setIsLoading(true);
+
+        if (!navigator.onLine) {
+            await OfflineQueueService.enqueueTask('TRANSLATE', { text: inputText, targetLang });
+            setTranslatedText('أنت غير متصل بالإنترنت. تم حفظ طلبك وسينفذ تلقائياً عند عودة الاتصال.');
+            setIsLoading(false);
+            return;
+        }
+
         try {
             const result = await translateText(inputText, targetLang);
             setTranslatedText(result);
+            
+            // Add to history
+            const newRecord: TranslationRecord = {
+                id: Date.now().toString(),
+                source: inputText,
+                result: result,
+                targetLang: targetLang,
+                timestamp: new Date().toLocaleString('ar-SA')
+            };
+            setHistory(prev => [newRecord, ...prev]);
         } catch (error) {
             setTranslatedText("Error translating.");
         } finally {
@@ -29,8 +74,14 @@ const TranslationPage: React.FC = () => {
             return;
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const recognition = new (window as any).webkitSpeechRecognition();
-        recognition.lang = targetLang === 'Arabic' ? 'en-US' : 'ar-SA'; // Listen in the source language
+        // Logic: if translating TO Arabic, source is likely English or Italian.
+        // If translating TO English/Italian, source is likely Arabic.
+        if (targetLang === 'Arabic') {
+            recognition.lang = 'en-US'; // Defaulting source to English if target is Arabic, could be Italian too but we'll use English as fallback
+        } else if (targetLang === 'English' || targetLang === 'Italian') {
+            recognition.lang = 'ar-SA';
+        }
+        
         recognition.start();
         setIsListening(true);
         
@@ -57,6 +108,7 @@ const TranslationPage: React.FC = () => {
                      >
                          <option value="Arabic">العربية (للمريض)</option>
                          <option value="English">English (For Medic)</option>
+                         <option value="Italian">Italiano (For Medic)</option>
                      </select>
                  </div>
                  
@@ -96,6 +148,30 @@ const TranslationPage: React.FC = () => {
                      )}
                  </div>
              </div>
+
+             {/* History Section */}
+             {history.length > 0 && (
+                 <div className="mt-8">
+                     <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+                         <ClockIcon className="h-6 w-6 me-2 text-blue-500" />
+                         سجل الترجمات السابقة
+                     </h2>
+                     <div className="space-y-4">
+                         {history.map(record => (
+                             <div key={record.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                                 <div className="flex justify-between items-center mb-2">
+                                     <span className="text-xs font-semibold px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                                         إلى: {record.targetLang}
+                                     </span>
+                                     <span className="text-xs text-gray-400">{record.timestamp}</span>
+                                 </div>
+                                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{record.source}</p>
+                                 <p className="text-gray-800 dark:text-gray-100 font-bold">{record.result}</p>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+             )}
         </div>
     );
 };

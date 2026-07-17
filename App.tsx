@@ -3,7 +3,9 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReportProvider } from './context/ReportContext';
+import './services/OfflineQueueService';
 import { ThemeProvider } from './context/ThemeContext';
+import { I18nProvider } from './context/I18nContext';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import PatientFormPage from './pages/PatientFormPage';
@@ -20,6 +22,7 @@ import PublicAIResultPage from './pages/PublicAIResultPage';
 import RegisterPage from './pages/RegisterPage';
 import OfflineSharePage from './pages/OfflineSharePage';
 import AIReportViewPage from './pages/AIReportViewPage';
+import CrisisConsultantPage from './pages/CrisisConsultantPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const auth = useAuth();
@@ -32,15 +35,17 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <ReportProvider>
-          <div className="bg-gray-100 dark:bg-gray-900 min-h-screen font-sans text-gray-900 dark:text-gray-100 transition-colors duration-200">
-            <HashRouter>
-              <AppRoutes />
-            </HashRouter>
-          </div>
-        </ReportProvider>
-      </AuthProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <ReportProvider>
+            <div className="bg-gray-100 dark:bg-gray-900 min-h-screen font-sans text-gray-900 dark:text-gray-100 transition-colors duration-200">
+              <HashRouter>
+                <AppRoutes />
+              </HashRouter>
+            </div>
+          </ReportProvider>
+        </AuthProvider>
+      </I18nProvider>
     </ThemeProvider>
   );
 };
@@ -162,6 +167,16 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute>
             <Layout>
               <AIReportViewPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/crisis"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <CrisisConsultantPage />
             </Layout>
           </ProtectedRoute>
         }

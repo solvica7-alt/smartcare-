@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useReports } from '../context/ReportContext';
-import { ArrowLeftIcon, CpuChipIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CpuChipIcon, ExclamationTriangleIcon, MapPinIcon } from '@heroicons/react/24/outline';
 
 const AIReportViewPage: React.FC = () => {
     const { reportId } = useParams();
@@ -87,6 +87,24 @@ const AIReportViewPage: React.FC = () => {
                                     </li>
                                 ))}
                             </ul>
+                        </div>
+                    )}
+
+                    {/* Location / GPS */}
+                    {report.location && (
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center">
+                                <MapPinIcon className="h-6 w-6 text-red-500 me-2" />
+                                إحداثيات موقع الإصابة (GPS)
+                            </h3>
+                            <a 
+                                href={`https://www.google.com/maps/search/?api=1&query=${report.location.lat},${report.location.lng}`} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="inline-flex items-center px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg transition border border-red-200"
+                            >
+                                عرض الموقع الدقيق على خرائط جوجل (إخلاء/إنقاذ)
+                            </a>
                         </div>
                     )}
                 </div>

@@ -2,24 +2,61 @@ import React, { useState, useEffect } from 'react';
 import { useReports } from '../context/ReportContext';
 import { generateInventorySuggestion } from '../services/geminiService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { ClipboardDocumentCheckIcon } from '@heroicons/react/24/solid';
+import { ClipboardDocumentCheckIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { getData, setData, StorageKeys } from '../services/StorageService';
+
+import { OfflineQueueService } from '../services/OfflineQueueService';
+
+interface InventoryRecord {
+    id: string;
+    suggestion: string;
+    timestamp: string;
+}
 
 const InventoryPage: React.FC = () => {
     const { reports } = useReports();
     const [suggestion, setSuggestion] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
+    
+    const [history, setHistory] = useState<InventoryRecord[]>([]);
+    const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
-        if (reports.length > 0) {
-            handleGenerateSuggestion();
+        getData<InventoryRecord[]>(StorageKeys.INVENTORY_HISTORY, []).then(saved => {
+            setHistory(saved);
+            setIsLoaded(true);
+            if (saved.length > 0) {
+                setSuggestion(saved[0].suggestion); // Load latest suggestion into view
+            }
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isLoaded) {
+            setData(StorageKeys.INVENTORY_HISTORY, history);
         }
-    }, [reports.length]);
+    }, [history, isLoaded]);
 
     const handleGenerateSuggestion = async () => {
         setIsLoading(true);
+
+        if (!navigator.onLine) {
+            await OfflineQueueService.enqueueTask('INVENTORY', { reports });
+            setSuggestion('أنت غير متصل بالإنترنت. تم وضع تقرير المخزون في قائمة الانتظار للتحليل فور عودة الاتصال.');
+            setIsLoading(false);
+            return;
+        }
+
         try {
             const result = await generateInventorySuggestion(reports);
             setSuggestion(result);
+            
+            const newRecord: InventoryRecord = {
+                id: Date.now().toString(),
+                suggestion: result,
+                timestamp: new Date().toLocaleString('ar-SA')
+            };
+            setHistory(prev => [newRecord, ...prev]);
         } catch (error) {
             setSuggestion("حدث خطأ أثناء تحليل المخزون.");
         } finally {
@@ -66,6 +103,31 @@ const InventoryPage: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* History Section */}
+            {history.length > 1 && (
+                <div className="mt-8">
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+                        <ClockIcon className="h-6 w-6 me-2 text-blue-500" />
+                        سجل التوصيات السابقة
+                    </h2>
+                    <div className="space-y-4">
+                        {history.slice(1).map(record => (
+                            <div key={record.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-sm text-gray-500 dark:text-gray-400 font-semibold">تاريخ التقرير:</span>
+                                    <span className="text-sm font-medium px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full">
+                                        {record.timestamp}
+                                    </span>
+                                </div>
+                                <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">
+                                    {record.suggestion}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

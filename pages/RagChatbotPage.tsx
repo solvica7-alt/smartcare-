@@ -6,6 +6,8 @@ import { getClinicalAssistantResponse, sendChatResponse } from '../services/gemi
 import LoadingSpinner from '../components/LoadingSpinner';
 import { PaperAirplaneIcon, MicrophoneIcon, PaperClipIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { useReports } from '../context/ReportContext';
+import { getData, setData, StorageKeys } from '../services/StorageService';
+import { OfflineQueueService } from '../services/OfflineQueueService';
 
 interface ChatMessage {
     text: string;
@@ -19,9 +21,25 @@ const RagChatbotPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [attachments, setAttachments] = useState<{ data: string; mimeType: string }[]>([]);
+    const [isLoaded, setIsLoaded] = useState(false);
     const { reports } = useReports();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
+
+    // Load initial history
+    useEffect(() => {
+        getData<ChatMessage[]>(StorageKeys.CHAT_HISTORY, []).then(saved => {
+            setMessages(saved);
+            setIsLoaded(true);
+        });
+    }, []);
+
+    // Save history when it changes
+    useEffect(() => {
+        if (isLoaded) {
+            setData(StorageKeys.CHAT_HISTORY, messages);
+        }
+    }, [messages, isLoaded]);
 
     const quickQuestions = [
         "من هو المريض علي محمد؟",
@@ -48,6 +66,14 @@ const RagChatbotPage: React.FC = () => {
         setInput('');
         setAttachments([]);
         setIsLoading(true);
+
+        if (!navigator.onLine) {
+            await OfflineQueueService.enqueueTask('CHAT', { text: currentInput, reports });
+            const botMessage: ChatMessage = { text: "أنت غير متصل بالإنترنت. تم حفظ رسالتك وسأقوم بالرد عليها فور عودة الاتصال.", sender: 'bot' };
+            setMessages(prev => [...prev, botMessage]);
+            setIsLoading(false);
+            return;
+        }
 
         try {
             let botResponse: string;
