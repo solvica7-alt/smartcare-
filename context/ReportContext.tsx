@@ -71,8 +71,14 @@ export const ReportProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
     };
 
-    // Removed auto-sync interval to permanently prevent 429 Too Many Requests.
-    // Sync will now only happen manually via the Cloud Hub UI or on specific triggers.
+    // Auto-sync polling every 15 seconds to keep devices in sync seamlessly
+    useEffect(() => {
+        if (!clinicId || !navigator.onLine) return;
+        const interval = setInterval(() => {
+            triggerSync();
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [clinicId, reports.length]);
 
     // 🇵🇸 FEATURE: Background AI Queue Worker
     const processOfflineQueue = async () => {

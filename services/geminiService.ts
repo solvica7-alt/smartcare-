@@ -415,43 +415,67 @@ export const compareMedicalImages = async (oldImage: { data: string, mimeType: s
     const langName = getLanguageName(language);
     
     try {
-        // NVIDIA limits to 1 image per request. 
-        // We will analyze both images separately, then compare the text using a fast 70B model.
-        
-        const analyzePrompt = `Analyze this image precisely. Describe the wound/condition in detail. Language: ${langName}`;
-        
-        const oldDesc = await callGeminiAPI({
-            contents: [{ parts: [
-                { inlineData: { mimeType: oldImage.mimeType, data: oldImage.data } },
-                { text: analyzePrompt }
-            ]}]
-        }, "gpt-4o");
-
-        const newDesc = await callGeminiAPI({
-            contents: [{ parts: [
-                { inlineData: { mimeType: newImage.mimeType, data: newImage.data } },
-                { text: analyzePrompt }
-            ]}]
-        }, "gpt-4o");
-
         const comparePrompt = `
-            Act as a senior medical expert. I have two textual analyses of a patient's injury over time.
-            Context: ${context}
+            أنت "كبير أطباء الجراحة المجهرية والعناية المركزة".
+            أمامك صورتان لنفس الحالة الطبية بفاصل زمني.
+            الصورة الأولى: الحالة السابقة.
+            الصورة الثانية: الحالة الحالية.
+            السياق: ${context}
             
-            Previous State Analysis:
-            "${oldDesc}"
+            مطلوب منك تقديم تحليل طبي مقارن **شديد الاحترافية** بتنسيق Markdown المنظم كما يلي بالضبط:
+
+            ### **ملخص الحالة:**
+            (اكتب فقرة طبية دقيقة تشرح التحول الجذري أو الاستقرار في الحالة، مع استخدام الرموز 📉 للتدهور، 📈 للتحسن، أو 🔄 للاستقرار)
+
+            ---
             
-            Current State Analysis:
-            "${newDesc}"
+            ### **المقارنة التفصيلية بين الحالتين:**
             
-            Question: Based on these two descriptions, is the condition improving, worsening, or stable? Provide a highly detailed and precise medical comparison.
-            Use formatting and emojis (📉, 📈, 🔄) to make it clear.
-            Answer ONLY and entirely in ${langName}. DO NOT use any other languages like Spanish (e.g. 'justo') or Chinese (e.g. '伤'). Translate strictly to standard professional medical ${langName}.
+            #### **1. طبيعة الآفة الأساسية:**
+            - **الحالة السابقة:** (وصف دقيق للأسباب والآلية)
+            - **الحالة الحالية:** (وصف دقيق للتشخيص الحالي والآلية)
+            
+            ---
+            
+            #### **2. الخصائص السريرية:**
+            | **المعايير** | **الحالة السابقة** 🩹 | **الحالة الحالية** 🩸 | **التفسير** 🔍 |
+            |--------------|-----------------------|----------------------|----------------|
+            | **الموقع والمساحة** | ... | ... | ... |
+            | **اللون والأنسجة** | ... | ... | ... |
+            | **الالتهاب والإفرازات** | ... | ... | ... |
+            | **الجلد المحيط** | ... | ... | ... |
+            | **التورم/علامات أخرى** | ... | ... | ... |
+            
+            ---
+            
+            #### **3. المضاعفات المحتملة والتطور المرضي:**
+            - **الحالة السابقة:** (المخاطر والعلاج المحتمل)
+            - **الحالة الحالية:** (المخاطر الحالية والعلاج المطلوب والتدخل الجراحي إذا لزم)
+            
+            يجب أن يكون الرد باللغة العربية (${langName}) فصحى طبية صارمة. لا تضف أي نصوص خارج هذا القالب المرجعي.
         `;
 
+        const parts: any[] = [{ text: comparePrompt }];
+        
+        // Add Old Image
+        parts.push({
+            inlineData: {
+                mimeType: oldImage.mimeType,
+                data: oldImage.data
+            }
+        });
+        
+        // Add New Image
+        parts.push({
+            inlineData: {
+                mimeType: newImage.mimeType,
+                data: newImage.data
+            }
+        });
+
         return await callGeminiAPI({
-            contents: [{ parts: [{ text: comparePrompt }] }]
-        }, "gpt-4o");
+            contents: [{ role: "user", parts: parts }]
+        });
     } catch (error) {
         console.error("Error in comparative analysis:", error);
         throw new Error("Failed to compare images.");
