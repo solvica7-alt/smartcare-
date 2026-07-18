@@ -17,7 +17,7 @@ const getProxiedUrl = (url: string) => {
     const timestamp = '?t=' + Date.now();
 
     // Use local proxy rule: /api/sync/ID
-    const match = url.match(/\/jsonBlob\/([a-z0-9-]+)/);
+    const match = url.match(/\/api\/jsonBlob\/([a-z0-9-]+)/);
     const blobId = match ? match[1] : null;
 
     if (blobId) {
@@ -28,12 +28,14 @@ const getProxiedUrl = (url: string) => {
     return url + timestamp;
 };
 
-// 🇵🇸 GLOBAL UNIVERSAL STORAGE ID
-// We store ALL clinics in ONE big JSON object: { "clinicId": [reports...], "anotherId": [...] }
-const UNIVERSAL_STORAGE_ID = '019f710b-6834-755c-bcac-70bfb1b698ad';
+// 🇵🇸 GLOBAL UNIVERSAL STORAGE ID (Migrated back to jsonblob for stability)
+const UNIVERSAL_STORAGE_ID = '019f75df-b46b-753a-82e8-da3d64160565';
 const STORAGE_URL = `https://jsonblob.com/api/jsonBlob/${UNIVERSAL_STORAGE_ID}`;
 
 export const SyncService = {
+    lastSyncTime: 0,
+    isSyncing: false,
+
     /**
      * Fetches reports directly from the Universal Storage.
      */
@@ -44,10 +46,9 @@ export const SyncService = {
             const response = await fetch(getProxiedUrl(STORAGE_URL));
             if (!response.ok) throw new Error('فشل الاتصال بالمخزن السحابي');
 
-            const allData = await response.json();
+            const rootData = await response.json();
+            const allData = rootData.data || {};
             // Data structure is { "clinicId": [reports], ... }
-            // If clinicId is strictly mapped to a blobId string (legacy), we handle that too, 
-            // but we are checking if it's an ARRAY of reports.
 
             const clinicData = allData[clinicId];
             if (Array.isArray(clinicData)) {
@@ -55,8 +56,8 @@ export const SyncService = {
             }
             return [];
 
-        } catch (error) {
-            console.error('Fetch Error:', error);
+        } catch (error: any) {
+            if (error.message && error.message.includes('429')) return []; // Ignore rate limits silently
             // Return empty if offline or error, so app continues locally
             return [];
         }
@@ -64,9 +65,21 @@ export const SyncService = {
 
     /**
      * Syncs local reports to the Universal Storage.
+     * Includes Cooldown/Throttling to prevent 429 Too Many Requests.
      */
     async syncToCloud(clinicId: string, localReports: Report[]): Promise<Report[]> {
         if (!clinicId || !navigator.onLine) return localReports;
+
+        // 🇵🇸 FEATURE: Throttling & Debouncing
+        // Prevent overlapping syncs and rapid sequential syncs (10s cooldown)
+        if (SyncService.isSyncing) return localReports;
+        const nowTime = Date.now();
+        if (nowTime - SyncService.lastSyncTime < 10000) {
+            console.log(`Sync throttled (Cooldown active). Try again in ${Math.ceil((10000 - (nowTime - SyncService.lastSyncTime))/1000)}s`);
+            return localReports;
+        }
+
+        SyncService.isSyncing = true;
 
         try {
             // 1. Get current universal state
@@ -74,7 +87,8 @@ export const SyncService = {
             let allData: Record<string, any> = {};
 
             if (response.ok) {
-                allData = await response.json();
+                const rootData = await response.json();
+                allData = rootData.data || {};
             }
 
             // 2. Extract THIS clinic's existing remote reports
@@ -104,22 +118,23 @@ export const SyncService = {
             allData[clinicId] = mergedList;
 
             // 5. Save back to Cloud (PUT)
-            // Note: This replaces the whole blob. In a real backend, we'd patch.
-            // But for jsonblob, we must PUT the whole updated JSON.
             await fetch(getProxiedUrl(STORAGE_URL), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify(allData)
+                body: JSON.stringify({ data: allData })
             });
 
+            SyncService.lastSyncTime = Date.now();
             return mergedList;
 
-        } catch (error) {
-            console.error('Sync Error:', error);
+        } catch (error: any) {
+            if (error.message && error.message.includes('429')) return localReports; // Ignore rate limits silently
             return localReports;
+        } finally {
+            SyncService.isSyncing = false;
         }
     },
 

@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReports } from '../context/ReportContext';
-import { ExclamationTriangleIcon, FireIcon, UserGroupIcon, MapPinIcon, CameraIcon, PaperAirplaneIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { generateCrisisAnalysis } from '../services/geminiService';
+import { ExclamationTriangleIcon, FireIcon, UserGroupIcon, MapPinIcon, CameraIcon, PaperAirplaneIcon, ClockIcon, ShieldExclamationIcon } from '@heroicons/react/24/solid';
 import { getData, setData, StorageKeys } from '../services/StorageService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useI18n } from '../context/I18nContext';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface CrisisRecord {
     id: string;
@@ -16,7 +19,7 @@ interface CrisisRecord {
 }
 
 const CrisisConsultantPage: React.FC = () => {
-    const { reports } = useReports();
+    const { reports, addReport } = useReports();
     const { t, dir } = useI18n();
     const [description, setDescription] = useState('');
     const [locationInput, setLocationInput] = useState('');
@@ -26,24 +29,22 @@ const CrisisConsultantPage: React.FC = () => {
     const [analysis, setAnalysis] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     
-    const [history, setHistory] = useState<CrisisRecord[]>([]);
-    const [isLoaded, setIsLoaded] = useState(false);
+    // Derived history from global reports for Cloud Hub synchronization
+    const history = reports
+        .filter(r => r.patientName.startsWith("حالة أزمة: "))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .map(r => ({
+            id: r.id,
+            description: r.symptoms[1] || r.symptoms[0],
+            location: r.location || '',
+            strategy: r.analysisResult.findings,
+            timestamp: new Date(r.createdAt).toLocaleString('ar-SA'),
+            imageB64: r.imagePreviews && r.imagePreviews.length > 0 ? r.imagePreviews[0].split(',')[1] : undefined,
+            imageMime: r.imagePreviews && r.imagePreviews.length > 0 ? r.imagePreviews[0].split(';')[0].split(':')[1] : undefined,
+        }));
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const activeReports = reports.filter(r => r.status === 'processed');
-
-    useEffect(() => {
-        getData<CrisisRecord[]>(StorageKeys.CRISIS_HISTORY, []).then(saved => {
-            setHistory(saved);
-            setIsLoaded(true);
-        });
-    }, []);
-
-    useEffect(() => {
-        if (isLoaded) {
-            setData(StorageKeys.CRISIS_HISTORY, history);
-        }
-    }, [history, isLoaded]);
+    const activeReports = reports.filter(r => r.status === 'processed' && r.patientName !== "تقرير إدارة المخزون الذكي" && r.patientName !== "تحليل تطوري للصور" && !r.patientName.startsWith("حالة أزمة: "));
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -71,72 +72,49 @@ const CrisisConsultantPage: React.FC = () => {
         });
     };
 
-    const generateCrisisAnalysis = async () => {
+    const handleGenerateCrisisAnalysis = async () => {
         setIsLoading(true);
         try {
             let imageB64Info = null;
             if (image) {
                 imageB64Info = await fileToBase64(image);
             }
-
-            const prompt = `أنت الذكاء الاصطناعي "المستشار الطبي للأزمات" في تطبيق SmartCare.
-            نحن في حالة كارثة/حرب. إليك بيانات ${activeReports.length} مصاب تم تسجيلهم حتى الآن:
-            ${activeReports.map(r => `- مريض: ${r.patientName}, تصنيف: ${r.analysisResult.triage_color}`).join('\n')}
-
-            تفاصيل الحدث الميداني المباشر:
-            - الوصف: ${description || t('undefinedStr')}
-            - الموقع: ${locationInput || t('undefinedStr')}
+            const base64Previews = imageB64Info ? [`data:${imageB64Info.mimeType};base64,${imageB64Info.data}`] : [];
             
-            ${imageB64Info ? t('attachedLiveImage') : ""}
+            // 🇵🇸 FEATURE: Integrate with global Sync (Cloud/Offline)
+            const patientData = {
+                name: "حالة أزمة: " + (description.substring(0, 15) || "ميدانية"),
+                age: 0,
+                symptoms: ["حالة كوارث", description || "غير محدد"],
+                detailedSymptoms: "",
+                notes: "تم التقرير من وحدة إدارة الأزمات.",
+                location: locationInput
+            };
 
-            بناءً على هذه البيانات الحية، قم بتقديم تقرير استراتيجي موجز وحاسم لمدير المستشفى يتضمن:
-            1. تقييم عام للموقف الحالي وتوزيع الإصابات.
-            2. الأولويات القصوى والتحليل المرئي للكارثة (إن وجد).
-            3. النواقص المتوقعة والخطوات الفورية للإخلاء.`;
-
-            // Prepare messages for LLaVA/NVIDIA Vision
-            const messages: any[] = [{ role: "user", content: prompt }];
-            
-            if (imageB64Info) {
-                // If using a vision model API, it might require a specific content array format:
-                messages[0].content = [
-                    { type: "text", text: prompt },
-                    { type: "image_url", image_url: { url: `data:${imageB64Info.mimeType};base64,${imageB64Info.data}` } }
-                ];
+            if (!navigator.onLine) {
+                const offlineAnalysis: any = {
+                    risk_level: 'غير متوفر',
+                    triage_color: 'gray',
+                    findings: 'تم حفظ الصورة محلياً للمزامنة لاحقاً عبر Cloud Hub',
+                    red_flags: []
+                };
+                addReport(patientData, offlineAnalysis, base64Previews, 'pending_analysis');
+                setAnalysis(t('savedLocally') + " - سيتم تحليل الخطة الاستراتيجية تلقائياً فور عودة الإنترنت.");
+                return;
             }
 
-            const response = await fetch('/api/nvidia/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer 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`
-                },
-                body: JSON.stringify({
-                    model: "meta/llama-3.2-11b-vision-instruct",
-                    messages: messages,
-                    max_tokens: 1024,
-                    temperature: 0.5
-                })
-            });
-
-            const data = await response.json();
-            let finalStrategy = t('cannotGenerateStrategy');
-            if (data.choices && data.choices[0]) {
-                finalStrategy = data.choices[0].message.content;
-            }
-            
+            const finalStrategy = await generateCrisisAnalysis(activeReports, description, locationInput, imageB64Info);
             setAnalysis(finalStrategy);
 
-            const newRecord: CrisisRecord = {
-                id: Date.now().toString(),
-                description,
-                location: locationInput,
-                imageB64: imageB64Info?.data,
-                imageMime: imageB64Info?.mimeType,
-                strategy: finalStrategy,
-                timestamp: new Date().toLocaleString('ar-SA')
+            const analysisRes = {
+                risk_level: "High 🔴",
+                triage_color: "red",
+                findings: finalStrategy,
+                red_flags: ["توجيه استراتيجي لإدارة الأزمات"],
+                medical_recommendations: []
             };
-            setHistory(prev => [newRecord, ...prev]);
+            
+            addReport(patientData, analysisRes, base64Previews, 'processed');
 
         } catch (error) {
             console.error("Crisis Analysis Error:", error);
@@ -230,7 +208,7 @@ const CrisisConsultantPage: React.FC = () => {
                 </div>
                 <div className="mt-6 flex justify-end">
                     <button
-                        onClick={generateCrisisAnalysis}
+                        onClick={handleGenerateCrisisAnalysis}
                         disabled={isLoading}
                         className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg flex items-center transition disabled:opacity-50"
                     >
@@ -251,29 +229,92 @@ const CrisisConsultantPage: React.FC = () => {
 
             {/* History Section */}
             {history.length > 0 && (
-                <div>
+                <div className="mt-8">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center">
-                        <ClockIcon className={`h-6 w-6 ${dir === 'rtl' ? 'me-2' : 'ms-2'} text-red-500`} />
-                        {t('crisisHistory')}
+                        <ClockIcon className="h-6 w-6 ml-2 text-red-500" />
+                        سجل تقارير الأزمات (Archive)
                     </h2>
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         {history.map(record => (
-                            <div key={record.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p className="font-bold text-gray-800 dark:text-gray-100">{record.description || t('noDescription')}</p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400"><MapPinIcon className={`h-4 w-4 inline ${dir === 'rtl' ? 'me-1' : 'ms-1'}`}/> {record.location || t('undefinedStr')}</p>
+                            <div key={record.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-300 dark:border-gray-700 overflow-hidden relative">
+                                {/* Print Header overlay for PDF look */}
+                                <div className="bg-red-50 dark:bg-red-900/30 border-b-2 border-red-600 dark:border-red-500 px-8 py-6">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-red-600 text-white p-2 rounded-lg">
+                                                <ShieldExclamationIcon className="h-8 w-8" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-wider">تقرير أزمة ميدانية</h3>
+                                                <p className="text-red-700 dark:text-red-400 font-bold mt-1">وحدة إدارة الكوارث والطوارئ</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-left">
+                                            <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded border border-gray-200 dark:border-gray-700 shadow-sm inline-block">
+                                                <p className="text-xs text-gray-500 font-semibold uppercase">رقم التقرير</p>
+                                                <p className="font-mono text-gray-800 dark:text-gray-200 font-bold">#CR-{record.id.substring(record.id.length - 6)}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span className="text-xs font-medium px-2 py-1 bg-red-100 text-red-800 rounded-full">{record.timestamp}</span>
+                                    <div className="grid grid-cols-2 gap-4 mt-6 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <MapPinIcon className="h-5 w-5 text-gray-400" />
+                                            <span className="font-semibold text-gray-700 dark:text-gray-300">الموقع: <span className="text-gray-900 dark:text-white">{record.location || 'غير محدد'}</span></span>
+                                        </div>
+                                        <div className="flex items-center gap-2 justify-end">
+                                            <ClockIcon className="h-5 w-5 text-gray-400" />
+                                            <span className="font-semibold text-gray-700 dark:text-gray-300">التاريخ: <span className="text-gray-900 dark:text-white" dir="ltr">{record.timestamp}</span></span>
+                                        </div>
+                                    </div>
                                 </div>
-                                
-                                {record.imageB64 && (
-                                    <img src={`data:${record.imageMime};base64,${record.imageB64}`} alt="Crisis" className="w-full h-48 object-cover rounded mb-4" />
-                                )}
 
-                                <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded border dark:border-gray-700">
-                                    <h4 className="font-bold text-red-600 mb-2">{t('issuedRescueStrategy')}</h4>
-                                    <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{record.strategy}</p>
+                                {/* Body */}
+                                <div className="p-8">
+                                    <div className="mb-6">
+                                        <h4 className="text-lg font-bold text-gray-800 dark:text-gray-200 border-b pb-2 mb-3">وصف الحالة الأولية</h4>
+                                        <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-md border border-gray-100 dark:border-gray-700 leading-relaxed">
+                                            {record.description}
+                                        </p>
+                                    </div>
+
+                                    {record.imageB64 && (
+                                        <div className="mb-8">
+                                            <h4 className="text-lg font-bold text-gray-800 dark:text-gray-200 border-b pb-2 mb-3">المرفقات البصرية</h4>
+                                            <div className="rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 p-2 inline-block shadow-sm">
+                                                <img src={`data:${record.imageMime};base64,${record.imageB64}`} alt="حالة الأزمة" className="max-h-64 object-contain rounded" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <h4 className="text-lg font-bold text-red-700 dark:text-red-400 border-b pb-2 mb-4">خطة التدخل الاستراتيجي (AI Analysis)</h4>
+                                        <div className="prose prose-red dark:prose-invert max-w-none prose-h3:text-red-700 prose-h3:border-b prose-h3:pb-1 prose-h4:text-red-600">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {record.strategy}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer Signatures */}
+                                <div className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-8 py-6">
+                                    <div className="grid grid-cols-3 gap-8 text-center">
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-500 mb-8 border-b border-gray-300 dark:border-gray-600 pb-2">تصديق المستشار الطبي</p>
+                                            <div className="border-b border-dashed border-gray-400 w-3/4 mx-auto"></div>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-500 mb-8 border-b border-gray-300 dark:border-gray-600 pb-2">توقيع الذكاء الاصطناعي (AI)</p>
+                                            <div className="font-mono text-gray-400 text-xs">VERIFIED_SMARTCARE_AI</div>
+                                            <div className="border-b border-dashed border-gray-400 w-3/4 mx-auto mt-2"></div>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-500 mb-8 border-b border-gray-300 dark:border-gray-600 pb-2">ختم الطوارئ</p>
+                                            <div className="w-16 h-16 border-4 border-red-500/30 rounded-full mx-auto flex items-center justify-center rotate-[-15deg]">
+                                                <span className="text-red-500/50 font-bold text-xs uppercase text-center leading-tight">OFFICIAL<br/>REPORT</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))}

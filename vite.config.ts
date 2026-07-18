@@ -22,6 +22,11 @@ export default defineConfig(({ mode }) => {
           target: 'https://integrate.api.nvidia.com',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/nvidia/, '')
+        },
+        '/api/cloudflare': {
+          target: 'https://api.cloudflare.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/cloudflare/, '')
         }
       }
     },

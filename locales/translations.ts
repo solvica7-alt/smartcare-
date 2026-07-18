@@ -1,6 +1,9 @@
 export const translations = {
     ar: {
         appName: "المساعد الطبي",
+        generateResponse: "توليد استجابة",
+        medicalResponse: "الاستجابة الطبية:",
+        attachedLiveImage: "الصورة الميدانية المرفقة:",
         dashboard: "لوحة التحكم",
         newPatient: "مريض جديد",
         reports: "التقارير",
@@ -331,6 +334,9 @@ export const translations = {
     },
     en: {
         appName: "Medical Assistant",
+        generateResponse: "Generate Response",
+        medicalResponse: "Medical Response:",
+        attachedLiveImage: "Attached Live Image:",
         dashboard: "Dashboard",
         newPatient: "New Patient",
         reports: "Reports",
@@ -661,6 +667,9 @@ export const translations = {
     },
     it: {
         appName: "Assistente Medico",
+        generateResponse: "Genera Risposta",
+        medicalResponse: "Risposta Medica:",
+        attachedLiveImage: "Immagine sul Campo Allegata:",
         dashboard: "Pannello di Controllo",
         newPatient: "Nuovo Paziente",
         reports: "Rapporti",

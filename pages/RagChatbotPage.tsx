@@ -16,8 +16,17 @@ interface ChatMessage {
     attachments?: { data: string; mimeType: string }[];
 }
 
+interface ChatSession {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    updatedAt: string;
+}
+
 const RagChatbotPage: React.FC = () => {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
@@ -28,10 +37,25 @@ const RagChatbotPage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
 
+    const currentMessages = sessions.find(s => s.id === currentSessionId)?.messages || [];
+
     // Load initial history
     useEffect(() => {
-        getData<ChatMessage[]>(StorageKeys.CHAT_HISTORY, []).then(saved => {
-            setMessages(saved);
+        getData<ChatSession[]>(StorageKeys.CHAT_HISTORY, []).then(saved => {
+            // Migration: if saved is an array of messages instead of sessions
+            if (saved.length > 0 && !('messages' in saved[0])) {
+                const legacySession: ChatSession = {
+                    id: Date.now().toString(),
+                    title: "محادثة سابقة",
+                    messages: saved as any,
+                    updatedAt: new Date().toISOString()
+                };
+                setSessions([legacySession]);
+                setCurrentSessionId(legacySession.id);
+            } else {
+                setSessions(saved);
+                if (saved.length > 0) setCurrentSessionId(saved[0].id);
+            }
             setIsLoaded(true);
         });
     }, []);
@@ -39,9 +63,34 @@ const RagChatbotPage: React.FC = () => {
     // Save history when it changes
     useEffect(() => {
         if (isLoaded) {
-            setData(StorageKeys.CHAT_HISTORY, messages);
+            setData(StorageKeys.CHAT_HISTORY, sessions);
         }
-    }, [messages, isLoaded]);
+    }, [sessions, isLoaded]);
+
+    const handleNewChat = () => {
+        const newSession: ChatSession = {
+            id: Date.now().toString(),
+            title: "محادثة جديدة",
+            messages: [],
+            updatedAt: new Date().toISOString()
+        };
+        setSessions(prev => [newSession, ...prev]);
+        setCurrentSessionId(newSession.id);
+    };
+
+    const updateCurrentSession = (newMessages: ChatMessage[]) => {
+        setSessions(prev => prev.map(s => {
+            if (s.id === currentSessionId) {
+                return {
+                    ...s,
+                    messages: newMessages,
+                    title: newMessages.length === 1 ? newMessages[0].text.substring(0, 30) : s.title,
+                    updatedAt: new Date().toISOString()
+                };
+            }
+            return s;
+        }));
+    };
 
     const quickQuestions = [
         t('q1'),
@@ -61,7 +110,9 @@ const RagChatbotPage: React.FC = () => {
             attachments: attachments.length > 0 ? [...attachments] : undefined
         };
 
-        setMessages(prev => [...prev, userMessage]);
+        const updatedMessages = [...currentMessages, userMessage];
+        updateCurrentSession(updatedMessages);
+        
         const currentInput = finalInput;
         const currentAttachments = [...attachments];
 
@@ -72,7 +123,7 @@ const RagChatbotPage: React.FC = () => {
         if (!navigator.onLine) {
             await OfflineQueueService.enqueueTask('CHAT', { text: currentInput, reports });
             const botMessage: ChatMessage = { text: t('chatbotOffline'), sender: 'bot' };
-            setMessages(prev => [...prev, botMessage]);
+            updateCurrentSession([...updatedMessages, botMessage]);
             setIsLoading(false);
             return;
         }
@@ -96,10 +147,10 @@ const RagChatbotPage: React.FC = () => {
             }
 
             const botMessage: ChatMessage = { text: botResponse, sender: 'bot' };
-            setMessages(prev => [...prev, botMessage]);
+            updateCurrentSession([...updatedMessages, botMessage]);
         } catch (error) {
             const errorMessage: ChatMessage = { text: t('chatbotError'), sender: 'bot' };
-            setMessages(prev => [...prev, errorMessage]);
+            updateCurrentSession([...updatedMessages, errorMessage]);
         } finally {
             setIsLoading(false);
         }
@@ -168,22 +219,45 @@ const RagChatbotPage: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-100px)] max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-md transition-colors duration-200" dir={dir}>
-            <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                <div>
-                    <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('chatbotTitle')}</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('chatbotSub')}</p>
+        <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] max-w-6xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden transition-colors duration-200" dir={dir}>
+            {/* Sidebar for Sessions */}
+            <div className="w-full md:w-64 bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-700 flex flex-col">
+                <div className="p-4 border-b dark:border-gray-700">
+                    <button onClick={handleNewChat} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center transition shadow-sm">
+                        + محادثة جديدة
+                    </button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {sessions.map(s => (
+                        <div 
+                            key={s.id} 
+                            onClick={() => setCurrentSessionId(s.id)}
+                            className={`p-4 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition ${currentSessionId === s.id ? 'bg-gray-200 dark:bg-gray-700 border-l-4 border-l-blue-500' : ''}`}
+                        >
+                            <p className="font-semibold text-gray-800 dark:text-white truncate">{s.title}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(s.updatedAt).toLocaleDateString('ar-SA')}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            <div className="flex-grow p-4 lg:p-6 overflow-y-auto space-y-4">
-                {messages.length === 0 && (
-                    <div className="text-center text-gray-500 dark:text-gray-400">
-                        <MicrophoneIcon className="h-12 w-12 mx-auto mb-4 text-blue-500 opacity-20" />
-                        <p className="mb-4 text-lg">{t('chatbotEmptyTitle')}</p>
+            {/* Chat Area */}
+            <div className="flex-1 flex flex-col">
+                <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800">
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('chatbotTitle')}</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('chatbotSub')}</p>
                     </div>
-                )}
-                {messages.map((msg, index) => (
+                </div>
+
+                <div className="flex-grow p-4 lg:p-6 overflow-y-auto space-y-4">
+                    {currentMessages.length === 0 && (
+                        <div className="text-center text-gray-500 dark:text-gray-400 mt-10">
+                            <MicrophoneIcon className="h-12 w-12 mx-auto mb-4 text-blue-500 opacity-20" />
+                            <p className="mb-4 text-lg">{t('chatbotEmptyTitle')}</p>
+                        </div>
+                    )}
+                    {currentMessages.map((msg, index) => (
                     <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[90%] lg:max-w-2xl p-3 rounded-lg overflow-x-auto ${msg.sender === 'user'
                             ? 'bg-blue-600 text-white'
@@ -217,10 +291,10 @@ const RagChatbotPage: React.FC = () => {
                         </div>
                     </div>
                 )}
-            </div>
+                </div>
 
-            <div className="p-4 border-t dark:border-gray-700 bg-white dark:bg-gray-800">
-                {messages.length === 0 && (
+                <div className="p-4 border-t dark:border-gray-700 bg-white dark:bg-gray-800">
+                    {currentMessages.length === 0 && (
                     <div className="flex flex-wrap justify-center gap-2 mb-4">
                         {quickQuestions.map((q: string, index: number) => (
                             <button
@@ -302,6 +376,7 @@ const RagChatbotPage: React.FC = () => {
                         <PaperAirplaneIcon className="h-6 w-6" />
                     </button>
                 </form>
+            </div>
             </div>
         </div>
     );

@@ -34,7 +34,7 @@ export interface Report {
   imagePreviews: string[];
   createdAt: string;
   updatedAt: string; // To track changes for sync merging
-  status: 'processed' | 'pending_sync';
+  status: 'pending_analysis' | 'processed' | 'pending_sync';
   syncStatus: 'synced' | 'pending' | 'local_only'; // Detailed sync state
   clinicId?: string; // Grouping ID for cloud sync
   doctorComment?: string;

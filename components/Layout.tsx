@@ -20,7 +20,8 @@ import {
     Bars3Icon,
     XMarkIcon,
     ExclamationTriangleIcon,
-    GlobeAltIcon
+    GlobeAltIcon,
+    Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {

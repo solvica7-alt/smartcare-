@@ -5,11 +5,11 @@ import { useReports } from '../context/ReportContext';
 import { useI18n } from '../context/I18nContext';
 import { Report, AnalysisResult } from '../types';
 import { analyzeMedicalImage } from '../services/geminiService';
-import { MagnifyingGlassIcon, QrCodeIcon, PrinterIcon, ArrowPathIcon, CloudArrowUpIcon, ShareIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, QrCodeIcon, PrinterIcon, ArrowPathIcon, CloudArrowUpIcon, ShareIcon, CpuChipIcon, TrashIcon } from '@heroicons/react/24/outline';
 import QRCode from 'react-qr-code';
 
 const ReportsPage: React.FC = () => {
-    const { reports, updateReport } = useReports();
+    const { reports, updateReport, deleteReport } = useReports();
     const { t, dir } = useI18n();
     const [searchTerm, setSearchTerm] = useState('');
     const [activeQr, setActiveQr] = useState<string | null>(null);
@@ -89,6 +89,12 @@ const ReportsPage: React.FC = () => {
             }
         }
         setIsSyncing(false);
+    };
+
+    const handleDelete = (id: string, name: string) => {
+        if (window.confirm(`هل أنت متأكد من حذف تقرير المريض: ${name}؟`)) {
+            deleteReport(id);
+        }
     };
 
     return (
@@ -200,8 +206,11 @@ ID: REF-${report.id.split('_')[1] || report.id}`}
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-${dir === 'rtl' ? 'right' : 'left'} text-sm font-medium`}>
-                                                <Link to={`/chat/${report.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 block mb-1">{t('viewReport')}</Link>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-${dir === 'rtl' ? 'right' : 'left'} text-sm font-medium flex gap-2 items-center`}>
+                                                <Link to={`/chat/${report.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 block">{t('viewReport')}</Link>
+                                                <button onClick={() => handleDelete(report.id, report.patientName)} className="text-red-500 hover:text-red-700 ml-2" title="حذف التقرير">
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { LockClosedIcon, UserIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import { useI18n } from '../context/I18nContext';
+import { useAuth } from '../context/AuthContext';
 
 const LoginPage: React.FC = () => {
     const [username, setUsername] = useState('');

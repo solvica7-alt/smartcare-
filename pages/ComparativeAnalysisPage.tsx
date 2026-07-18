@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { compareMedicalImages } from '../services/geminiService';
 import { useI18n } from '../context/I18nContext';
+import { useReports } from '../context/ReportContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { PhotoIcon, ArrowsRightLeftIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { getData, setData, StorageKeys } from '../services/StorageService';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface CompareRecord {
     id: string;
@@ -17,6 +20,7 @@ interface CompareRecord {
 
 const ComparativeAnalysisPage: React.FC = () => {
     const { t, dir } = useI18n();
+    const { reports, addReport } = useReports();
     const [oldImage, setOldImage] = useState<File | null>(null);
     const [newImage, setNewImage] = useState<File | null>(null);
     const [oldPreview, setOldPreview] = useState<string | null>(null);
@@ -24,21 +28,19 @@ const ComparativeAnalysisPage: React.FC = () => {
     const [result, setResult] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     
-    const [history, setHistory] = useState<CompareRecord[]>([]);
-    const [isLoaded, setIsLoaded] = useState(false);
-
-    useEffect(() => {
-        getData<CompareRecord[]>(StorageKeys.COMPARE_HISTORY, []).then(saved => {
-            setHistory(saved);
-            setIsLoaded(true);
-        });
-    }, []);
-
-    useEffect(() => {
-        if (isLoaded) {
-            setData(StorageKeys.COMPARE_HISTORY, history);
-        }
-    }, [history, isLoaded]);
+    // Derived history from global reports for Cloud Hub synchronization
+    const history = reports
+        .filter(r => r.patientName === "تحليل تطوري للصور")
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .map(r => ({
+            id: r.id,
+            oldImageB64: r.imagePreviews && r.imagePreviews[0] ? r.imagePreviews[0].split(',')[1] : '',
+            oldImageMime: r.imagePreviews && r.imagePreviews[0] ? r.imagePreviews[0].split(';')[0].split(':')[1] : '',
+            newImageB64: r.imagePreviews && r.imagePreviews[1] ? r.imagePreviews[1].split(',')[1] : '',
+            newImageMime: r.imagePreviews && r.imagePreviews[1] ? r.imagePreviews[1].split(';')[0].split(':')[1] : '',
+            result: r.analysisResult.findings,
+            timestamp: new Date(r.createdAt).toLocaleString('ar-SA')
+        }));
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'old' | 'new') => {
         if (e.target.files && e.target.files[0]) {
@@ -67,19 +69,42 @@ const ComparativeAnalysisPage: React.FC = () => {
         try {
             const oldB64 = await fileToBase64(oldImage);
             const newB64 = await fileToBase64(newImage);
-            const comparison = await compareMedicalImages(oldB64.data, newB64.data, "Patient wound evolution");
-            setResult(comparison);
-            
-            const newRecord: CompareRecord = {
-                id: Date.now().toString(),
-                oldImageB64: oldB64.data,
-                oldImageMime: oldB64.mimeType,
-                newImageB64: newB64.data,
-                newImageMime: newB64.mimeType,
-                result: comparison,
-                timestamp: new Date().toLocaleString('ar-SA')
+            const base64Previews = [`data:${oldB64.mimeType};base64,${oldB64.data}`, `data:${newB64.mimeType};base64,${newB64.data}`];
+
+            const patientData = {
+                name: "تحليل تطوري للصور",
+                age: 0,
+                symptoms: ["تتبع حالة الجرح أو الإصابة"],
+                detailedSymptoms: "",
+                notes: "مقارنة آلية للصور الطبية باستخدام الذكاء الاصطناعي",
+                location: "قسم التحليل التطوري"
             };
-            setHistory(prev => [newRecord, ...prev]);
+
+            if (!navigator.onLine) {
+                const offlineAnalysis: any = {
+                    risk_level: 'مؤجل',
+                    triage_color: 'gray',
+                    findings: 'تم حفظ الصور محلياً. بانتظار عودة الاتصال للمقارنة.',
+                    red_flags: []
+                };
+                addReport(patientData, offlineAnalysis, base64Previews, 'pending_analysis');
+                setResult(t('savedLocally') + " - سيتم إجراء التحليل التطوري تلقائياً فور عودة الإنترنت.");
+                return;
+            }
+
+            const comparison = await compareMedicalImages(oldB64, newB64, "Patient wound evolution");
+            setResult(comparison);
+
+            const analysisRes = {
+                risk_level: "Medium 🟡",
+                triage_color: "yellow",
+                findings: comparison,
+                red_flags: ["تغير في حالة الإصابة بناءً على الصور"],
+                medical_recommendations: []
+            };
+            
+            addReport(patientData, analysisRes, base64Previews, 'processed');
+
         } catch (error) {
             setResult(t('compError'));
         } finally {
@@ -135,8 +160,10 @@ const ComparativeAnalysisPage: React.FC = () => {
             {result && !isLoading && (
                 <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg border dark:border-gray-700">
                     <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{t('compResult')}</h3>
-                    <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                        {result}
+                    <div className="prose prose-blue dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {result}
+                        </ReactMarkdown>
                     </div>
                 </div>
             )}
@@ -167,8 +194,10 @@ const ComparativeAnalysisPage: React.FC = () => {
                                         <img src={`data:${record.newImageMime};base64,${record.newImageB64}`} alt="New" className="w-full h-32 object-contain rounded bg-gray-50 dark:bg-gray-900 border" />
                                     </div>
                                 </div>
-                                <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap bg-blue-50 dark:bg-blue-900/10 p-4 rounded-lg">
-                                    {record.result}
+                                <div className="prose prose-blue dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-sm bg-blue-50 dark:bg-blue-900/10 p-4 rounded-lg">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {record.result}
+                                    </ReactMarkdown>
                                 </div>
                             </div>
                         ))}

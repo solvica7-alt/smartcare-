@@ -183,10 +183,13 @@ const PatientFormPage: React.FC = () => {
             const base64Promises = imageFiles.map(file => fileToBase64(file));
             const base64Images = await Promise.all(base64Promises);
 
+            // Prepare images for local display and permanent storage
+            const base64Previews = base64Images.map(img => `data:${img.mimeType};base64,${img.data}`);
+
             // Online check
             if (navigator.onLine) {
                 const result: AnalysisResult = await analyzeMedicalImage(base64Images, patient);
-                navigate('/ai-result', { state: { patient, analysisResult: result, imagePreviews: imagePreviews } });
+                navigate('/ai-result', { state: { patient, analysisResult: result, imagePreviews: base64Previews } });
             } else {
                 // Offline save
                 const offlineResult: AnalysisResult = {
@@ -196,10 +199,8 @@ const PatientFormPage: React.FC = () => {
                     red_flags: []
                 };
 
-                // Prepare images for local display
-                const base64Previews = base64Images.map(img => `data:${img.mimeType};base64,${img.data}`);
-
-                addReport(patient, offlineResult, base64Previews, 'pending_sync');
+                // 🇵🇸 FEATURE: Save as pending_analysis for Background AI Worker
+                addReport(patient, offlineResult, base64Previews, 'pending_analysis');
                 navigate('/reports');
             }
         } catch (err: any) {
