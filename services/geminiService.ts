@@ -3,7 +3,7 @@ import { CLINICAL_KNOWLEDGE_BASE } from './clinicalKnowledgeBase';
 
 // Use Mistral to avoid strict Azure medical content filters
 const GEMINI_API_KEY = "3zf71fS2wh5EaTFeHu5QQ2RUZzx8ZZj2";
-const MODEL_NAME = 'pixtral-large-latest';
+const MODEL_NAME = 'mistral-large-latest';
 const API_URL = `https://api.mistral.ai/v1/chat/completions`;
 
 // Internal helper to call API via REST
